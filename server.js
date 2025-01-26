@@ -5,6 +5,7 @@ const Product = require('./models/Product');  // Import Product model
 
 const app = express();
 
+
 // Middleware
 app.use(express.json());  // To parse JSON data
 app.use(cors());  // Enable CORS
