@@ -1,7 +1,8 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const Grocery = require('./models/Grocery');  // Assuming this is the correct path for your Grocery model
+const Grocery = require('./models/Grocery'); // Assuming this is the correct path for your Grocery model
+const Food = require('./models/Food');
 
 const app = express();
 
@@ -21,9 +22,7 @@ mongoose.connect('mongodb+srv://hayasbackend:HayasBackend.dev2024@cluster0.xyhmf
         console.error('MongoDB connection error:', err);
     });
 
-// Routes
-
-// Create a new Product
+// Routes for Grocery
 app.post('/grocery', async (req, res) => {
     try {
         const { imageURL, title, description, halfKg, oneKg } = req.body;
@@ -35,17 +34,15 @@ app.post('/grocery', async (req, res) => {
     }
 });
 
-// Get all Products
 app.get('/grocery', async (req, res) => {
     try {
         const grocery = await Grocery.find();  // Fetch all products from MongoDB
-        res.status(200).json(grocery);  // Send the fetched products as JSON
+        res.status(200).json(grocery);
     } catch (err) {
         res.status(500).json({ error: 'Error fetching products', details: err });
     }
 });
 
-// Get a single Product by ID
 app.get('/grocery/:id', async (req, res) => {
     try {
         const grocery = await Grocery.findById(req.params.id);
@@ -58,14 +55,13 @@ app.get('/grocery/:id', async (req, res) => {
     }
 });
 
-// Update a Product by ID
 app.put('/grocery/:id', async (req, res) => {
     try {
         const { imageURL, title, description, halfKg, oneKg } = req.body;
         const updatedGrocery = await Grocery.findByIdAndUpdate(
             req.params.id,
             { imageURL, title, description, halfKg, oneKg },
-            { new: true } // Returns the updated document
+            { new: true }
         );
         if (!updatedGrocery) {
             return res.status(404).json({ error: 'Product not found' });
@@ -76,7 +72,6 @@ app.put('/grocery/:id', async (req, res) => {
     }
 });
 
-// Delete a Product by ID
 app.delete('/grocery/:id', async (req, res) => {
     try {
         const deletedGrocery = await Grocery.findByIdAndDelete(req.params.id);
@@ -86,6 +81,68 @@ app.delete('/grocery/:id', async (req, res) => {
         res.status(200).json({ message: 'Product deleted successfully' });
     } catch (err) {
         res.status(500).json({ error: 'Error deleting product', details: err });
+    }
+});
+
+// Routes for Food (New Endpoints)
+app.post('/food', async (req, res) => {
+    try {
+        const { imageURL, title, description, halfKg, oneKg } = req.body;
+        const newFood = new Food({ imageURL, title, description, halfKg, oneKg });
+        await newFood.save();
+        res.status(201).json({ message: 'Food created successfully', food: newFood });
+    } catch (err) {
+        res.status(400).json({ error: 'Error creating food', details: err });
+    }
+});
+
+app.get('/food', async (req, res) => {
+    try {
+        const food = await Food.find();  // Fetch all food items from MongoDB
+        res.status(200).json(food);
+    } catch (err) {
+        res.status(500).json({ error: 'Error fetching food', details: err });
+    }
+});
+
+app.get('/food/:id', async (req, res) => {
+    try {
+        const food = await Food.findById(req.params.id);
+        if (!food) {
+            return res.status(404).json({ error: 'Food not found' });
+        }
+        res.status(200).json(food);
+    } catch (err) {
+        res.status(500).json({ error: 'Error fetching food', details: err });
+    }
+});
+
+app.put('/food/:id', async (req, res) => {
+    try {
+        const { imageURL, title, description, halfKg, oneKg } = req.body;
+        const updatedFood = await Food.findByIdAndUpdate(
+            req.params.id,
+            { imageURL, title, description, halfKg, oneKg },
+            { new: true }
+        );
+        if (!updatedFood) {
+            return res.status(404).json({ error: 'Food not found' });
+        }
+        res.status(200).json({ message: 'Food updated successfully', food: updatedFood });
+    } catch (err) {
+        res.status(400).json({ error: 'Error updating food', details: err });
+    }
+});
+
+app.delete('/food/:id', async (req, res) => {
+    try {
+        const deletedFood = await Food.findByIdAndDelete(req.params.id);
+        if (!deletedFood) {
+            return res.status(404).json({ error: 'Food not found' });
+        }
+        res.status(200).json({ message: 'Food deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ error: 'Error deleting food', details: err });
     }
 });
 
