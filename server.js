@@ -1,7 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const Product = require('./models/Product');  // Import Product model
+const Grocery = require('./models/Grocery');
 
 const app = express();
 
@@ -25,63 +25,63 @@ mongoose.connect('mongodb+srv://hayasbackend:HayasBackend.dev2024@cluster0.xyhmf
 // Routes
 
 // Create a new Product
-app.post('/products', async (req, res) => {
+app.post('/grocery', async (req, res) => {
     try {
         const { imageURL, title, description, halfKg, oneKg } = req.body;
-        const newProduct = new Product({ imageURL, title, description, halfKg, oneKg });
-        await newProduct.save();
-        res.status(201).json({ message: 'Product created successfully', product: newProduct });
+        const newGrocery = new Grocery({ imageURL, title, description, halfKg, oneKg });
+        await newGrocery.save();
+        res.status(201).json({ message: 'Product created successfully', grocery: newGrocery });
     } catch (err) {
         res.status(400).json({ error: 'Error creating product', details: err });
     }
 });
 
 // Get all Products
-app.get('/products', async (req, res) => {
+app.get('/grocery', async (req, res) => {
     try {
-        const products = await Product.find();
-        res.status(200).json(products);
+        const grocery = await Grocery.find();
+        res.status(200).json(Grocery);
     } catch (err) {
         res.status(500).json({ error: 'Error fetching products', details: err });
     }
 });
 
 // Get a single Product by ID
-app.get('/products/:id', async (req, res) => {
+app.get('/grocery/:id', async (req, res) => {
     try {
-        const product = await Product.findById(req.params.id);
-        if (!product) {
+        const grocery = await Grocery.findById(req.params.id);
+        if (!grocery) {
             return res.status(404).json({ error: 'Product not found' });
         }
-        res.status(200).json(product);
+        res.status(200).json(grocery);
     } catch (err) {
         res.status(500).json({ error: 'Error fetching product', details: err });
     }
 });
 
 // Update a Product by ID
-app.put('/products/:id', async (req, res) => {
+app.put('/grocery/:id', async (req, res) => {
     try {
         const { imageURL, title, description, halfKg, oneKg } = req.body;
-        const updatedProduct = await Product.findByIdAndUpdate(
+        const updatedGrocery = await Grocery.findByIdAndUpdate(
             req.params.id,
             { imageURL, title, description, halfKg, oneKg },
             { new: true } // Returns the updated document
         );
-        if (!updatedProduct) {
+        if (!updatedGrocery) {
             return res.status(404).json({ error: 'Product not found' });
         }
-        res.status(200).json({ message: 'Product updated successfully', product: updatedProduct });
+        res.status(200).json({ message: 'Product updated successfully', grocery: updatedGrocery });
     } catch (err) {
         res.status(400).json({ error: 'Error updating product', details: err });
     }
 });
 
 // Delete a Product by ID
-app.delete('/products/:id', async (req, res) => {
+app.delete('/grocery/:id', async (req, res) => {
     try {
-        const deletedProduct = await Product.findByIdAndDelete(req.params.id);
-        if (!deletedProduct) {
+        const deletedGrocery = await Grocery.findByIdAndDelete(req.params.id);
+        if (!deletedGrocery) {
             return res.status(404).json({ error: 'Product not found' });
         }
         res.status(200).json({ message: 'Product deleted successfully' });
