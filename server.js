@@ -1,10 +1,9 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const Grocery = require('./models/Grocery');
+const Grocery = require('./models/Grocery');  // Assuming this is the correct path for your Grocery model
 
 const app = express();
-
 
 // Middleware
 app.use(express.json());  // To parse JSON data
@@ -39,8 +38,8 @@ app.post('/grocery', async (req, res) => {
 // Get all Products
 app.get('/grocery', async (req, res) => {
     try {
-        const grocery = await Grocery.find();
-        res.status(200).json(Grocery);
+        const grocery = await Grocery.find();  // Fetch all products from MongoDB
+        res.status(200).json(grocery);  // Send the fetched products as JSON
     } catch (err) {
         res.status(500).json({ error: 'Error fetching products', details: err });
     }
