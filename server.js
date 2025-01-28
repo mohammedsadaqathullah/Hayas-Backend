@@ -25,8 +25,8 @@ mongoose.connect('mongodb+srv://hayasbackend:HayasBackend.dev2024@cluster0.xyhmf
 // Routes for Grocery
 app.post('/grocery', async (req, res) => {
     try {
-        const { imageURL, title, description, halfKg, oneKg } = req.body;
-        const newGrocery = new Grocery({ imageURL, title, description, halfKg, oneKg });
+        const { imageURL, title, description, quantityOne, quantityTwo } = req.body;
+        const newGrocery = new Grocery({ imageURL, title, description, quantityOne, quantityTwo });
         await newGrocery.save();
         res.status(201).json({ message: 'Product created successfully', grocery: newGrocery });
     } catch (err) {
@@ -57,10 +57,10 @@ app.get('/grocery/:id', async (req, res) => {
 
 app.put('/grocery/:id', async (req, res) => {
     try {
-        const { imageURL, title, description, halfKg, oneKg } = req.body;
+        const { imageURL, title, description, quantityOne, quantityTwo } = req.body;
         const updatedGrocery = await Grocery.findByIdAndUpdate(
             req.params.id,
-            { imageURL, title, description, halfKg, oneKg },
+            { imageURL, title, description, quantityOne, quantityTwo },
             { new: true }
         );
         if (!updatedGrocery) {
@@ -84,11 +84,11 @@ app.delete('/grocery/:id', async (req, res) => {
     }
 });
 
-// Routes for Food (New Endpoints)
+// Routes for Food
 app.post('/food', async (req, res) => {
     try {
-        const { imageURL, title, description, halfKg, oneKg } = req.body;
-        const newFood = new Food({ imageURL, title, description, halfKg, oneKg });
+        const { imageURL, title, description, quantityOne, quantityTwo } = req.body;
+        const newFood = new Food({ imageURL, title, description, quantityOne, quantityTwo });
         await newFood.save();
         res.status(201).json({ message: 'Food created successfully', food: newFood });
     } catch (err) {
@@ -119,10 +119,10 @@ app.get('/food/:id', async (req, res) => {
 
 app.put('/food/:id', async (req, res) => {
     try {
-        const { imageURL, title, description, halfKg, oneKg } = req.body;
+        const { imageURL, title, description, quantityOne, quantityTwo } = req.body;
         const updatedFood = await Food.findByIdAndUpdate(
             req.params.id,
-            { imageURL, title, description, halfKg, oneKg },
+            { imageURL, title, description, quantityOne, quantityTwo },
             { new: true }
         );
         if (!updatedFood) {
