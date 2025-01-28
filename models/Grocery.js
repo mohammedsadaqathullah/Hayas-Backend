@@ -14,11 +14,11 @@ const grocerySchema = new mongoose.Schema({
         required: true
     },
     quantityOne: {  // Changed from halfKg
-        type: Number,
+        type: String,
         required: true
     },
     quantityTwo: {  // Changed from oneKg
-        type: Number,
+        type: String,
         required: true
     },
     datePosted: {
