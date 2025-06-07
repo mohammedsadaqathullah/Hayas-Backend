@@ -4,15 +4,29 @@ const Address = require('../models/Address');
 
 router.post('/', async (req, res) => {
     try {
-        const { Name, Phone, email,Password, doorNoAndStreetName, Area, Place } = req.body;
-        const updatedAddress = await Address.findOneAndUpdate(
-            { email: email.toLowerCase() },
-            { Name, Phone, email: email.toLowerCase(),Password, doorNoAndStreetName, Area, Place },
-            { new: true, upsert: true, setDefaultsOnInsert: true }
-        );
-        res.status(200).json({ message: 'Address saved successfully', address: updatedAddress });
+        const { Name, Phone, email, Password, doorNoAndStreetName, Area, Place } = req.body;
+
+        // Check if email already exists
+        const existing = await Address.findOne({ email: email.toLowerCase() });
+        if (existing) {
+            return res.status(400).json({ error: 'Email already exists' });
+        }
+
+        // Create new address
+        const newAddress = new Address({
+            Name,
+            Phone,
+            email: email.toLowerCase(),
+            Password,
+            doorNoAndStreetName,
+            Area,
+            Place
+        });
+
+        await newAddress.save();
+        res.status(201).json({ message: 'Address created successfully', address: newAddress });
     } catch (err) {
-        res.status(400).json({ error: 'Error saving address', details: err });
+        res.status(500).json({ error: 'Error saving address', details: err.message });
     }
 });
 
