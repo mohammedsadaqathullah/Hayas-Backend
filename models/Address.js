@@ -20,7 +20,7 @@ const AddressSchema = new mongoose.Schema({
   },
    Password: {
     type: String,
-    required: true,
+    required: false,
     trim: true,
   },
   doorNoAndStreetName: {
