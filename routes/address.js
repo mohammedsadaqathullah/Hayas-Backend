@@ -4,10 +4,10 @@ const Address = require('../models/Address');
 
 router.post('/', async (req, res) => {
     try {
-        const { Name, Phone, email, doorNoAndStreetName, Area, Place } = req.body;
+        const { Name, Phone, email,Password, doorNoAndStreetName, Area, Place } = req.body;
         const updatedAddress = await Address.findOneAndUpdate(
             { email: email.toLowerCase() },
-            { Name, Phone, email: email.toLowerCase(), doorNoAndStreetName, Area, Place },
+            { Name, Phone, email: email.toLowerCase(),Password, doorNoAndStreetName, Area, Place },
             { new: true, upsert: true, setDefaultsOnInsert: true }
         );
         res.status(200).json({ message: 'Address saved successfully', address: updatedAddress });

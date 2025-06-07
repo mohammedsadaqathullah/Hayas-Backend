@@ -18,6 +18,11 @@ const AddressSchema = new mongoose.Schema({
     lowercase: true,
     unique: true, // 👈 Ensures one address per email
   },
+   Password: {
+    type: String,
+    required: true,
+    trim: true,
+  },
   doorNoAndStreetName: {
     type: String,
     required: true,
