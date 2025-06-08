@@ -19,7 +19,7 @@ const foodSchema = new mongoose.Schema({
     },
     quantityTwo: {  // Changed from oneKg
         type: String,
-        required: true
+        required: false
     },
     datePosted: {
         type: Date,

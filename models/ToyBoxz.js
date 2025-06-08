@@ -13,13 +13,13 @@ const toySchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    sizeSmall: {  // Changed from quantityOne
+    quantityOne: {  // Changed from halfKg
         type: String,
         required: true
     },
-    sizeLarge: {  // Changed from quantityTwo
+    quantityTwo: {  // Changed from oneKg
         type: String,
-        required: true
+        required: false
     },
     datePosted: {
         type: Date,
