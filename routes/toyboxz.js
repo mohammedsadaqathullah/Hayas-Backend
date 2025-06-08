@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const Toyboxz = require('../models/Toyboxz');
+const Toyboxz = require('../models/ToyBoxz');
 
 router.post('/', async (req, res) => {
     try {
