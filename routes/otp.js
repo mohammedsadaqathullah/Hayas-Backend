@@ -5,11 +5,16 @@ const { sendEmailOTP, verifyOTP } = require('../models/Otp');
 // Send OTP route
 router.post('/send-otp', async (req, res) => {
   const { email } = req.body;
+
+  if (!email || typeof email !== 'string' || !email.includes('@')) {
+    return res.status(400).json({ success: false, message: 'Invalid or missing email' });
+  }
+
   try {
     await sendEmailOTP(email);
     res.status(200).json({ success: true, message: 'OTP sent!' });
   } catch (error) {
-    console.error('Error sending OTP:', error);
+    console.error('Error sending OTP:', error.message);
     res.status(500).json({ success: false, message: 'Failed to send OTP' });
   }
 });
