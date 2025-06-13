@@ -28,10 +28,13 @@ async function sendEmailOTP(email) {
   html: `
     <div style="font-family: 'Segoe UI', Roboto, sans-serif; background-color: #f4f4f4; padding: 30px 0;">
       <div style="max-width: 600px; margin: auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
-        <!-- Header / Banner -->
-        <img src="https://yourdomain.com/banner.jpg" alt="HAYAS Banner" style="width: 100%; display: block;"/>
+        
+        <!-- Banner Section with Black Background -->
+        <div style="background-color: #000000; text-align: center;">
+          <img src="https://i.postimg.cc/3N2wzxqR/logo-White.png" alt="HAYAS Banner" style="width: 100%; max-width: 600px; height: auto; display: block; margin: 0 auto;" />
+        </div>
 
-        <!-- Content -->
+        <!-- Main Content -->
         <div style="padding: 30px 20px; text-align: center;">
           <h2 style="margin-top: 0; color: #222;">Your Verification Code</h2>
           <p style="font-size: 16px; color: #555;">
@@ -41,15 +44,15 @@ async function sendEmailOTP(email) {
             This code is valid for the next <strong>10 minutes</strong>.
           </p>
 
-          <!-- OTP Display -->
+          <!-- OTP Display Box -->
           <div style="margin: 30px 0;">
-            <div style="display: inline-block; background-color: #f0f0f0; padding: 15px 30px; border-radius: 8px; font-size: 28px; font-weight: bold; letter-spacing: 4px; color: #333;">
+            <div style="display: inline-block; background-color: #000000; color: #ffffff; padding: 18px 35px; border-radius: 10px; font-size: 28px; font-weight: bold; letter-spacing: 4px;">
               ${otp}
             </div>
           </div>
 
           <p style="font-size: 14px; color: #999;">
-            If you did not request this, you can safely ignore this email.
+            If you didn’t request this, feel free to ignore this message.
           </p>
         </div>
 
@@ -61,6 +64,7 @@ async function sendEmailOTP(email) {
     </div>
   `
 };
+
 
   try {
     await transporter.verify();
