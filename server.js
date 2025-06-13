@@ -16,6 +16,7 @@ app.use('/food', require('./routes/food'));
 app.use('/vegetables-and-fruits', require('./routes/vegetablesAndFruits'));
 app.use('/address', require('./routes/address'));
 app.use('/toyboxz', require('./routes/toyboxz'));
+app.use('/otp', require('./routes/otp'));
 
 // Basic Route
 app.get('/', (req, res) => res.send('Hello, Backend is running!'));
