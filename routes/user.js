@@ -66,29 +66,5 @@ router.delete('/:email', async (req, res) => {
     }
 });
 
-// Logout user by setting loggedIn to false
-router.post('/logout', async (req, res) => {
-  try {
-    const { email } = req.body;
-
-    if (!email) {
-      return res.status(400).json({ error: 'Email is required' });
-    }
-
-    const updatedUser = await User.findOneAndUpdate(
-      { email: email.toLowerCase() },
-      { loggedIn: false }
-        );
-
-    if (!updatedUser) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    res.status(200).json({ message: 'User logged out successfully', user: updatedUser });
-  } catch (err) {
-    res.status(500).json({ error: 'Error logging out user', details: err.message });
-  }
-});
-
 
 module.exports = router;
