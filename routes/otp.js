@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { sendEmailOTP, verifyOTP } = require('../models/Otp');
+const User = require('../models/User');
 
 // Send OTP route
 router.post('/send-otp', async (req, res) => {
@@ -11,6 +12,12 @@ router.post('/send-otp', async (req, res) => {
   }
 
   try {
+    // Check if email already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ success: false, message: 'Email already exists' });
+    }
+
     await sendEmailOTP(email);
     res.status(200).json({ success: true, message: 'OTP sent!' });
   } catch (error) {
@@ -18,7 +25,6 @@ router.post('/send-otp', async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to send OTP' });
   }
 });
-
 // Verify OTP route
 router.post('/verify-otp', (req, res) => {
   const { email, otp } = req.body;

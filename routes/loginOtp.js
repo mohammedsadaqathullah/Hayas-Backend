@@ -12,13 +12,25 @@ router.post('/send-otp', async (req, res) => {
   }
 
   try {
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
+
     if (!existingUser) {
-      return res.status(404).json({ success: false, message: 'Email not found' });
+      return res.status(404).json({ success: false, message: 'Email not found. Please register.' });
     }
 
+    // 🔒 Check if already logged in
+    if (existingUser.loggedIn) {
+      return res.status(403).json({
+        success: false,
+        message: 'User is already logged in from another device.',
+        action: 'logout_required'
+      });
+    }
+
+    // ✅ Proceed to send OTP
     await sendEmailOTP(email);
     res.status(200).json({ success: true, message: 'OTP sent!' });
+
   } catch (error) {
     console.error('Error sending OTP:', error.message);
     res.status(500).json({ success: false, message: 'Failed to send OTP' });
