@@ -17,19 +17,27 @@ async function sendEmailOTP(email) {
     service: 'Gmail',
     auth: {
       user: 'hayasfastdelivery@gmail.com',
-      pass: 'iuwt acnx qhfc wgpo'
+      pass: 'iuwt acnx qhfc wgpo' // App password
     }
   });
 
   const mailOptions = {
-    from: `HAYAS Fast Delivery`,
+    from: `HAYAS Fast Delivery <hayasfastdelivery@gmail.com>`,
     to: email,
     subject: 'Your OTP Code',
     html: `<p>Your OTP code is <strong>${otp}</strong>. It will expire in 10 minutes.</p>`
   };
 
-  await transporter.sendMail(mailOptions);
-  return true;
+  try {
+    await transporter.verify();
+    console.log('Transporter verified, ready to send emails.');
+    await transporter.sendMail(mailOptions);
+    console.log('OTP email sent successfully.');
+    return true;
+  } catch (error) {
+    console.error('❌ Error sending OTP email:', error);
+    throw error;
+  }
 }
 
 // Verify OTP
