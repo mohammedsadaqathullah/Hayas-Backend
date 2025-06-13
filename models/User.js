@@ -8,7 +8,6 @@ const UserSchema = new mongoose.Schema({
   doorNoAndStreetName: { type: String, required: true, trim: true },
   Area: { type: String, required: true, trim: true },
   Place: { type: String, required: true, trim: true },
-  loggedIn: { type: Boolean, default: false }, // <-- ADD THIS LINE
 }, {
   timestamps: true
 });

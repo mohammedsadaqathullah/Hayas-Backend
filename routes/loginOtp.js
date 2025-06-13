@@ -18,15 +18,6 @@ router.post('/send-otp', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Email not found. Please register.' });
     }
 
-    // 🔒 Check if already logged in
-    if (existingUser.loggedIn) {
-      return res.status(403).json({
-        success: false,
-        message: 'User is already logged in from another device.',
-        action: 'logout_required'
-      });
-    }
-
     // ✅ Proceed to send OTP
     await sendEmailOTP(email);
     res.status(200).json({ success: true, message: 'OTP sent!' });

@@ -21,7 +21,6 @@ router.post('/', async (req, res) => {
             doorNoAndStreetName,
             Area,
             Place,
-            loggedIn: true
         });
 
         await newUser.save();
