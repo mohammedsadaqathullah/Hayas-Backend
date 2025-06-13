@@ -14,7 +14,7 @@ require('./config/db')();
 app.use('/grocery', require('./routes/grocery'));
 app.use('/food', require('./routes/food'));
 app.use('/vegetables-and-fruits', require('./routes/vegetablesAndFruits'));
-app.use('/address', require('./routes/address'));
+app.use('/user', require('./routes/user'));
 app.use('/toyboxz', require('./routes/toyboxz'));
 app.use('/otp', require('./routes/otp'));
 

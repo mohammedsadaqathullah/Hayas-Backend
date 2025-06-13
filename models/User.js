@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const AddressSchema = new mongoose.Schema({
+const UserSchema = new mongoose.Schema({
   Name: {
     type: String,
     required: true,
@@ -16,7 +16,7 @@ const AddressSchema = new mongoose.Schema({
     required: true,
     trim: true,
     lowercase: true,
-    unique: true, // 👈 Ensures one address per email
+    unique: true, 
   },
    Password: {
     type: String,
@@ -42,4 +42,4 @@ const AddressSchema = new mongoose.Schema({
   timestamps: true
 });
 
-module.exports = mongoose.model('Address', AddressSchema);
+module.exports = mongoose.model('User', UserSchema);

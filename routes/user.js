@@ -1,19 +1,19 @@
 const express = require('express');
 const router = express.Router();
-const Address = require('../models/Address');
+const User = require('../models/User');
 
 router.post('/', async (req, res) => {
     try {
         const { Name, Phone, email, Password, doorNoAndStreetName, Area, Place } = req.body;
 
         // Check if email already exists
-        const existing = await Address.findOne({ email: email.toLowerCase() });
+        const existing = await User.findOne({ email: email.toLowerCase() });
         if (existing) {
             return res.status(400).json({ error: 'Email already exists' });
         }
 
         // Create new address
-        const newAddress = new Address({
+        const newUser = new User({
             Name,
             Phone,
             email: email.toLowerCase(),
@@ -23,32 +23,32 @@ router.post('/', async (req, res) => {
             Place
         });
 
-        await newAddress.save();
-        res.status(201).json({ message: 'Address created successfully', address: newAddress });
+        await newUser.save();
+        res.status(201).json({ message: 'User created successfully', user: newUser });
     } catch (err) {
-        res.status(500).json({ error: 'Error saving address', details: err.message });
+        res.status(500).json({ error: 'Error saving User', details: err.message });
     }
 });
 
 router.get('/by-email/:email', async (req, res) => {
     try {
-        const address = await Address.findOne({ email: req.params.email.toLowerCase() });
-        if (!address) return res.status(404).json({ error: 'No address found' });
-        res.status(200).json(address);
+        const address = await User.findOne({ email: req.params.email.toLowerCase() });
+        if (!User) return res.status(404).json({ error: 'No User found' });
+        res.status(200).json(User);
     } catch (err) {
-        res.status(500).json({ error: 'Error fetching address', details: err });
+        res.status(500).json({ error: 'Error fetching User', details: err });
     }
 });
 
 router.put('/:email', async (req, res) => {
     try {
-        const updated = await Address.findOneAndUpdate(
+        const updated = await User.findOneAndUpdate(
             { email: req.params.email.toLowerCase() },
             req.body,
             { new: true }
         );
-        if (!updated) return res.status(404).json({ error: 'Address not found' });
-        res.status(200).json({ message: 'Updated successfully', address: updated });
+        if (!updated) return res.status(404).json({ error: 'User not found' });
+        res.status(200).json({ message: 'Updated successfully', user: updated });
     } catch (err) {
         res.status(400).json({ error: 'Error updating', details: err });
     }
@@ -56,8 +56,8 @@ router.put('/:email', async (req, res) => {
 
 router.delete('/:email', async (req, res) => {
     try {
-        const deleted = await Address.findOneAndDelete({ email: req.params.email.toLowerCase() });
-        if (!deleted) return res.status(404).json({ error: 'Address not found' });
+        const deleted = await User.findOneAndDelete({ email: req.params.email.toLowerCase() });
+        if (!deleted) return res.status(404).json({ error: 'User not found' });
         res.status(200).json({ message: 'Deleted successfully' });
     } catch (err) {
         res.status(500).json({ error: 'Error deleting', details: err });
