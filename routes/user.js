@@ -4,7 +4,7 @@ const User = require('../models/User');
 
 router.post('/', async (req, res) => {
     try {
-        const { Name, Phone, email, Password, doorNoAndStreetName, Area, Place } = req.body;
+        const { name, phone, email, password, doorNoAndStreetName, area, place } = req.body;
 
         // Check if email already exists
         const existing = await User.findOne({ email: email.toLowerCase() });
@@ -14,13 +14,13 @@ router.post('/', async (req, res) => {
 
         // Create new address
         const newUser = new User({
-            Name,
-            Phone,
+            name,
+            phone,
             email: email.toLowerCase(),
-            Password,
+            password,
             doorNoAndStreetName,
-            Area,
-            Place,
+            area,
+            place,
         });
 
         await newUser.save();
