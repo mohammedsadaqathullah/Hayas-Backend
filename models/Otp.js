@@ -32,11 +32,19 @@ async function sendEmailOTP(email) {
   return true;
 }
 
+// Verify OTP
 function verifyOTP(email, inputOtp) {
   const record = otpStore[email];
   if (!record) return false;
-  if (Date.now() > record.expires) return false;
-  return record.otp === inputOtp;
-}
 
+  // Check if expired
+  if (Date.now() > record.expires) {
+    delete otpStore[email];
+    return false;
+  }
+
+  const isValid = record.otp === inputOtp;
+  if (isValid) delete otpStore[email]; // Clean up used OTP
+  return isValid;
+}
 module.exports = { sendEmailOTP, verifyOTP };
