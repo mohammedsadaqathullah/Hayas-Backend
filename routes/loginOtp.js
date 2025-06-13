@@ -4,7 +4,7 @@ const { sendEmailOTP, verifyOTP } = require('../models/Otp');
 const User = require('../models/User'); // Assume Mongoose model
 
 // Send OTP route with email existence check
-router.post('/login/send-otp', async (req, res) => {
+router.post('/send-otp', async (req, res) => {
   const { email } = req.body;
 
   if (!email || typeof email !== 'string' || !email.includes('@')) {
@@ -26,7 +26,7 @@ router.post('/login/send-otp', async (req, res) => {
 });
 
 // Verify OTP route
-router.post('/login/verify-otp', async (req, res) => {
+router.post('/verify-otp', async (req, res) => {
   const { email, otp } = req.body;
 
   if (!email || !otp) {
