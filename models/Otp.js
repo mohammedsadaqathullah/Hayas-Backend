@@ -17,7 +17,7 @@ async function sendEmailOTP(email) {
     service: 'Gmail',
     auth: {
       user: 'hayasfastdelivery@gmail.com',
-      pass: 'hayas2k20'
+      pass: 'iuwt acnx qhfc wgpo'
     }
   });
 
