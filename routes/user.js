@@ -33,9 +33,11 @@ router.post('/', async (req, res) => {
 
 router.get('/by-email/:email', async (req, res) => {
     try {
-        const address = await User.findOne({ email: req.params.email.toLowerCase() });
-        if (!User) return res.status(404).json({ error: 'No User found' });
-        res.status(200).json(User);
+        const user = await User.findOne({ email: req.params.email.toLowerCase() });
+        if (!user) {
+            return res.status(404).json({ error: 'No User found' });
+        }
+        res.status(200).json(user);
     } catch (err) {
         res.status(500).json({ error: 'Error fetching User', details: err });
     }
