@@ -29,10 +29,13 @@ async function sendEmailOTP(email) {
     <div style="font-family: 'Segoe UI', Roboto, sans-serif; background-color: #f4f4f4; padding: 30px 0;">
       <div style="max-width: 600px; margin: auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
         
-        <!-- Banner Section with Black Background -->
-        <div style="background-color: #000000; text-align: center;">
-<img src="https://i.postimg.cc/3N2wzxqR/logo-White.png" alt="HAYAS Banner" width="100%" style="max-width: 600px; display: block; margin: 0 auto;" />
-        </div>
+   <!-- Banner Section with Black Background -->
+<div style="background-color: #000000; text-align: center;">
+  <div style="padding: 40px 0; background-color: #000; color: #fff; text-align: center; font-size: 28px; font-weight: bold; line-height: 1.4;">
+    HAYAS<br/>Fast Delivery
+  </div>
+</div>
+
 
         <!-- Main Content -->
         <div style="padding: 30px 20px; text-align: center;">
