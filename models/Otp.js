@@ -30,9 +30,8 @@ async function sendEmailOTP(email) {
       <div style="max-width: 600px; margin: auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
         
 <!-- Banner Section with Black Background -->
-<div style="background-color: #000000; text-align: center; padding: 40px 0; color: #ffffff;">
-  <div style="font-size: 38px; font-weight: bold;">HAYAS</div>
-  <div style="font-size: 20px; font-weight: normal;">Fast Delivery</div>
+<div style="background-color: #000000; text-align: center; padding: 60px 0; color: #ffffff;">
+  <div style="font-size: 68px; font-weight: bold;">HAYAS</div>
 </div>
 
         <!-- Main Content -->
