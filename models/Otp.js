@@ -31,7 +31,7 @@ async function sendEmailOTP(email) {
         
         <!-- Banner Section with Black Background -->
         <div style="background-color: #000000; text-align: center;">
-          <img src="https://i.postimg.cc/3N2wzxqR/logo-White.png" alt="HAYAS Banner" style="width: 100%; max-width: 600px; height: auto; display: block; margin: 0 auto;" />
+<img src="https://i.postimg.cc/3N2wzxqR/logo-White.png" alt="HAYAS Banner" width="100%" style="max-width: 600px; display: block; margin: 0 auto;" />
         </div>
 
         <!-- Main Content -->
