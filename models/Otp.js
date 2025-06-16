@@ -21,21 +21,19 @@ async function sendEmailOTP(email) {
     }
   });
 
- const mailOptions = {
-  from: `HAYAS Fast Delivery <hayasfastdelivery@gmail.com>`,
-  to: email,
-  subject: 'Your One-Time Password (OTP)',
-  html: `
+  const mailOptions = {
+    from: `HAYAS Fast Delivery <hayasfastdelivery@gmail.com>`,
+    to: email,
+    subject: 'Your One-Time Password (OTP)',
+    html: `
     <div style="font-family: 'Segoe UI', Roboto, sans-serif; background-color: #f4f4f4; padding: 30px 0;">
       <div style="max-width: 600px; margin: auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
         
-   <!-- Banner Section with Black Background -->
-<div style="background-color: #000000; text-align: center;">
-  <div style="padding: 40px 0; background-color: #000; color: #fff; text-align: center; font-size: 28px; font-weight: bold; line-height: 1.4;">
-    HAYAS<br/>Fast Delivery
-  </div>
+<!-- Banner Section with Black Background -->
+<div style="background-color: #000000; text-align: center; padding: 40px 0; color: #ffffff;">
+  <div style="font-size: 38px; font-weight: bold;">HAYAS</div>
+  <div style="font-size: 20px; font-weight: normal;">Fast Delivery</div>
 </div>
-
 
         <!-- Main Content -->
         <div style="padding: 30px 20px; text-align: center;">
@@ -66,7 +64,7 @@ async function sendEmailOTP(email) {
       </div>
     </div>
   `
-};
+  };
 
 
   try {
