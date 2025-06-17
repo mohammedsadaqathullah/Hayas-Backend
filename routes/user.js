@@ -42,7 +42,7 @@ router.get('/by-email/:email', async (req, res) => {
         }
         res.status(200).json(user);
     } catch (err) {
-        res.status(500).json({ error: 'Error fetching User', details: err });
+        res.status(500).json({ error: 'Error fetching User', details: decryptEmail });
     }
 });
 
