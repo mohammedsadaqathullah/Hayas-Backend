@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
+const validationKey = require('../validationkey')
+const CryptoJS = require("crypto-js");
 
 router.post('/', async (req, res) => {
     try {
@@ -42,6 +44,19 @@ router.get('/by-email/:email', async (req, res) => {
     }
 });
 
+router.get('/by-email-verify/:email', async (req, res) => {
+    try {
+         const bytes = CryptoJS.AES.decrypt( req.params.email, validationKey);
+  const decryptedText = bytes.toString(CryptoJS.enc.Utf8);
+        const user = await User.findOne({ email: decryptedText.toLowerCase() });
+        if (!user) {
+            return res.status(404).json({ error: 'No User found' });
+        }
+        res.status(200).json(user);
+    } catch (err) {
+        res.status(500).json({ error: 'Error fetching User', details: err });
+    }
+});
 router.put('/:email', async (req, res) => {
     try {
         const updated = await User.findOneAndUpdate(
