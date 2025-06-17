@@ -46,17 +46,25 @@ router.get('/by-email/:email', async (req, res) => {
 
 router.get('/by-email-verify/:email', async (req, res) => {
     try {
-         const bytes = CryptoJS.AES.decrypt( req.params.email, validationKey);
-  const decryptedText = bytes.toString(CryptoJS.enc.Utf8);
+        const encryptedEmail = decodeURIComponent(req.params.email);
+        const bytes = CryptoJS.AES.decrypt(encryptedEmail, validationKey);
+        const decryptedText = bytes.toString(CryptoJS.enc.Utf8);
+
+        if (!decryptedText) {
+            return res.status(400).json({ error: 'Invalid encrypted email' });
+        }
+
         const user = await User.findOne({ email: decryptedText.toLowerCase() });
         if (!user) {
             return res.status(404).json({ error: 'No User found' });
         }
+
         res.status(200).json(user);
     } catch (err) {
-        res.status(500).json({ error: 'Error fetching User', details: err });
+        res.status(500).json({ error: 'Error fetching User', details: err.message });
     }
 });
+
 router.put('/:email', async (req, res) => {
     try {
         const updated = await User.findOneAndUpdate(
