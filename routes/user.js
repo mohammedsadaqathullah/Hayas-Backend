@@ -3,6 +3,7 @@ const router = express.Router();
 const User = require('../models/User');
 const CryptoJS = require("crypto-js");
 
+const secretKey = 'b14ca5hA1YA133bbcS00123456789012'
 
 router.post('/', async (req, res) => {
     try {
@@ -35,13 +36,18 @@ router.post('/', async (req, res) => {
 router.get('/by-email/:email', async (req, res) => {
     try {
            const encrypted = decodeURIComponent(req.params.email);
-    const bytes = CryptoJS.AES.decrypt(encrypted, 'b14ca5hA1YA133bbcS00123456789012');
+    const bytes = CryptoJS.AES.decrypt(encrypted, secretKey);
     const decryptedEmail = bytes.toString(CryptoJS.enc.Utf8);
         const user = await User.findOne({ email: decryptedEmail.toLowerCase() });
+
         if (!user) {
             return res.status(404).json({ error: 'No User found' });
         }
-        res.status(200).json(user);
+        
+    const userObject = user.toObject(); 
+    const encryptedUser = CryptoJS.AES.encrypt(JSON.stringify(userObject), secretKey).toString();
+
+    res.status(200).json({ encryptedUser });
     } catch (err) {
         res.status(500).json({ error: 'Error fetching User', details: err });
     }
