@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
-const decryptEmail = require('../utils/decryptEmail');
 
 router.post('/', async (req, res) => {
     try {
@@ -33,16 +32,13 @@ router.post('/', async (req, res) => {
 
 router.get('/by-email/:email', async (req, res) => {
     try {
- const encryptedEmail = decodeURIComponent(req.params.email);
-    const decryptedEmail = decryptEmail(encryptedEmail);
-
-    const user = await User.findOne({ email: decryptedEmail.toLowerCase() });
-            if (!user) {
+        const user = await User.findOne({ email: req.params.email.toLowerCase() });
+        if (!user) {
             return res.status(404).json({ error: 'No User found' });
         }
         res.status(200).json(user);
     } catch (err) {
-        res.status(500).json({ error: 'Error fetching User',decryptEmail, details: decryptEmail });
+        res.status(500).json({ error: 'Error fetching User', details: err });
     }
 });
 
