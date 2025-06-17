@@ -4,6 +4,7 @@ const User = require('../models/User');
 const validationKey = require('../validationkey')
 const CryptoJS = require("crypto-js");
 
+
 router.post('/', async (req, res) => {
     try {
         const { name, phone, email, password, doorNoAndStreetName, area, place } = req.body;
@@ -47,14 +48,12 @@ router.get('/by-email/:email', async (req, res) => {
 router.get('/by-email-verify/:email', async (req, res) => {
   try {
     const encryptedEmail = decodeURIComponent(req.params.email);
-    let decryptedText;
+    console.log("🔐 Encrypted Email (decoded from URL):", encryptedEmail);
 
-    try {
-      const bytes = CryptoJS.AES.decrypt(encryptedEmail, validationKey);
-      decryptedText = bytes.toString(CryptoJS.enc.Utf8);
-    } catch (e) {
-      return res.status(400).json({ error: 'Failed to decrypt email', details: e.message });
-    }
+    const bytes = CryptoJS.AES.decrypt(encryptedEmail, validationKey);
+    const decryptedText = bytes.toString(CryptoJS.enc.Utf8);
+
+    console.log("📧 Decrypted Email:", decryptedText);
 
     if (!decryptedText) {
       return res.status(400).json({ error: 'Invalid encrypted email' });
@@ -67,6 +66,7 @@ router.get('/by-email-verify/:email', async (req, res) => {
 
     res.status(200).json(user);
   } catch (err) {
+    console.error("❌ Decryption error:", err);
     res.status(500).json({ error: 'Error fetching User', details: err.message });
   }
 });
