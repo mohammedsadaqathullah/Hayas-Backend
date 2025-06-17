@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
+const CryptoJS = require("../node_modules/crypto-js");
+
 
 router.post('/', async (req, res) => {
     try {
@@ -32,6 +34,8 @@ router.post('/', async (req, res) => {
 
 router.get('/by-email/:email', async (req, res) => {
     try {
+          const bytes = await CryptoJS.AES.decrypt(encryptedEmail, 'b14ca5hA1YA133bbcS00123456789012');
+  const decryptedText = await bytes.toString(CryptoJS.enc.Utf8);
         const user = await User.findOne({ email: req.params.email.toLowerCase() });
         if (!user) {
             return res.status(404).json({ error: 'No User found' });
