@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
-const CryptoJS = require("../node_modules/crypto-js");
+const CryptoJS = require("crypto-js");
 
 
 router.post('/', async (req, res) => {
