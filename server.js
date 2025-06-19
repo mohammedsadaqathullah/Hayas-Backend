@@ -18,7 +18,7 @@ app.use('/user', require('./routes/user'));
 app.use('/toyboxz', require('./routes/toyboxz'));
 app.use('/otp', require('./routes/otp'));
 app.use('/login', require('./routes/loginOtp'));
-
+app.use('/orders', require('./routes/order'));
 
 // Basic Route
 app.get('/', (req, res) => res.send('Hello, Backend is running!'));
