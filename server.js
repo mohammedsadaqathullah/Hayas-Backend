@@ -35,10 +35,10 @@ app.use('/toyboxz', require('./routes/toyboxz'));
 app.use('/otp', require('./routes/otp'));
 app.use('/login', require('./routes/loginOtp'));
 app.use('/orders', require('./routes/order')); // ✅ this should match with the route you wrote
-app.use('/delivery-partner/auth', require('./routes/deliveryLogin'))
-app.use('/delivery-partner', require('./routes/deliveryPartnerUser'))
-app.use('/admin-user/auth',require ('./routes/adminLogin'))
-app.use('/admin-user',require('./routes/adminUser'))
+app.use('/delivery-partner/auth', require('./routes/deliveryLogin'));
+app.use('/delivery-partner', require('./routes/deliveryPartnerUser'));
+app.use('/admin-user/auth',require ('./routes/adminLogin'));
+app.use('/admin-user',require('./routes/adminUser'));
 // Basic route
 app.get('/', (req, res) => res.send('Hello, Backend is running!'));
 

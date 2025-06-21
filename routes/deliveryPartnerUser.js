@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const DeliveryPartnerUser = require('../models/DeliveryPartnerUser');
-const { sendEmailOTP, verifyOTP } = require('../utils/emailOtp'); // Adjust path if needed
+const { sendEmailOTP, verifyOTP } = require('../models/Otp');
 
 // POST - Register a new Delivery Partner
 router.post('/', async (req, res) => {

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const AdminUser = require('../models/AdminUser');
-const { sendEmailOTP, verifyOTP } = require('../utils/emailOtp');
+const { sendEmailOTP, verifyOTP } = require('../models/Otp');
 
 // POST /api/admin-users/send-otp
 router.post('/send-otp', async (req, res) => {

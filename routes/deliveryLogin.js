@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { sendEmailOTP, verifyOTP } = require('../../models/Otp');
-const DeliveryPartnerUser = require('../../models/DeliveryPartnerUser');
+const { sendEmailOTP, verifyOTP } = require('../models/Otp');
+const DeliveryPartnerUser = require('../models/DeliveryPartnerUser');
 
 // POST /auth/delivery/send-otp
 router.post('/send-otp', async (req, res) => {
