@@ -51,6 +51,12 @@ const DeliveryPartnerUserSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  status: {
+  type: String,
+  enum: ['Pending', 'Approved', 'Rejected'],
+  default: 'Pending',
+},
+
 });
 
 module.exports = mongoose.model('DeliveryPartnerUser', DeliveryPartnerUserSchema);

@@ -3,7 +3,7 @@ const router = express.Router();
 const DeliveryPartnerUser = require('../models/DeliveryPartnerUser');
 const { sendEmailOTP, verifyOTP } = require('../models/Otp');
 
-// POST - Register a new Delivery Partner
+// POST - Register or Update Delivery Partner
 router.post('/', async (req, res) => {
   try {
     const {
@@ -20,28 +20,34 @@ router.post('/', async (req, res) => {
       aadhaarBack,
     } = req.body;
 
-  
-    const user = new DeliveryPartnerUser({
-      name,
-      parentName,
-      email,
-      phone,
-      address,
-      pincode,
-      profileImage,
-      dlFront,
-      dlBack,
-      aadhaarFront,
-      aadhaarBack,
-    });
+    const updatedUser = await DeliveryPartnerUser.findOneAndUpdate(
+      { email },
+      {
+        $set: {
+          name,
+          parentName,
+          phone,
+          address,
+          pincode,
+          profileImage,
+          dlFront,
+          dlBack,
+          aadhaarFront,
+          aadhaarBack,
+        },
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
 
-    await user.save();
-    res.status(201).json({ message: 'User registered successfully', user });
+    const message = updatedUser.isNew ? 'User registered successfully' : 'User updated successfully';
+
+    res.status(201).json({ message, user: updatedUser });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Internal server error',err });
+    res.status(500).json({ error: 'Internal server error', err });
   }
 });
+
 
 // POST /delivery-partners/send-otp
 router.post('/send-otp', async (req, res) => {
@@ -87,28 +93,58 @@ router.get('/', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch users' });
   }
 });
-// PATCH - Update delivery partner by email
-router.patch('/:email', async (req, res) => {
-  const { email } = req.params;
-  const updates = req.body;
+
+// PATCH /delivery-partner/status
+// Body expects: { email: "...", status: "Approved" | "Rejected" }
+router.patch('/status', async (req, res) => {
+  const { email, status } = req.body;
+
+  if (!email || (status !== 'Approved' && status !== 'Rejected')) {
+    return res.status(400).json({
+      error: 'Invalid request: provide email and status as "Approved" or "Rejected"',
+    });
+  }
 
   try {
     const user = await DeliveryPartnerUser.findOneAndUpdate(
       { email },
-      { $set: updates },
-      { new: true }
+      { $set: { status } },
+      { new: true },
     );
 
     if (!user) {
       return res.status(404).json({ error: 'Delivery partner not found' });
     }
 
-    res.status(200).json({ message: 'User updated successfully', user });
+    res.status(200).json({ message: `Status updated to ${status}`, user });
   } catch (err) {
-    console.error('Update error:', err);
-    res.status(500).json({ error: 'Failed to update user' });
+    console.error('Status update error:', err);
+    res.status(500).json({ error: 'Failed to update status' });
   }
 });
+
+// GET - Fetch a delivery partner by email (email in body)
+router.post('/by-email', async (req, res) => {
+  const { email } = req.body;
+
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ error: 'Valid email is required' });
+  }
+
+  try {
+    const user = await DeliveryPartnerUser.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({ error: 'Delivery partner not found' });
+    }
+
+    res.status(200).json(user);
+  } catch (err) {
+    console.error('Fetch by email error:', err);
+    res.status(500).json({ error: 'Failed to fetch user by email' });
+  }
+});
+
 
 
 module.exports = router;
