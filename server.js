@@ -38,6 +38,9 @@ app.use('/orders', require('./routes/order')); // ✅ this should match with the
 app.use('/delivery-partner/auth', require('./routes/deliveryLogin'));
 app.use('/delivery-partner', require('./routes/deliveryPartnerUser'));
 app.use('/delivery-partners-images', require('./routes/deliveryPartnersImages'))
+//for public
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 app.use('/admin-user/auth',require ('./routes/adminLogin'));
 app.use('/admin-user',require('./routes/adminUser'));
 // Basic route
