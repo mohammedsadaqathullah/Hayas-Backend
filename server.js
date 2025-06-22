@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const http = require('http'); // ✅ FIXED: import http
 const { Server } = require('socket.io');
 const cors = require('cors');
+const path = require('path'); // Add this if not already
 
 const app = express();
 const server = http.createServer(app); // ✅ use for socket.io
