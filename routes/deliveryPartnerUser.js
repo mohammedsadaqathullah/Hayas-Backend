@@ -20,9 +20,7 @@ router.post('/', async (req, res) => {
       aadhaarBack,
     } = req.body;
 
-    // Basic server-side validation
-    if (!otpVerified) return res.status(400).json({ error: 'OTP not verified' });
-
+  
     const user = new DeliveryPartnerUser({
       name,
       parentName,
