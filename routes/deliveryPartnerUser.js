@@ -41,7 +41,7 @@ router.post('/', async (req, res) => {
     res.status(201).json({ message: 'User registered successfully', user });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error',err });
   }
 });
 
@@ -89,5 +89,28 @@ router.get('/', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch users' });
   }
 });
+// PATCH - Update delivery partner by email
+router.patch('/:email', async (req, res) => {
+  const { email } = req.params;
+  const updates = req.body;
+
+  try {
+    const user = await DeliveryPartnerUser.findOneAndUpdate(
+      { email },
+      { $set: updates },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({ error: 'Delivery partner not found' });
+    }
+
+    res.status(200).json({ message: 'User updated successfully', user });
+  } catch (err) {
+    console.error('Update error:', err);
+    res.status(500).json({ error: 'Failed to update user' });
+  }
+});
+
 
 module.exports = router;
