@@ -18,6 +18,21 @@ router.post('/send-otp', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Delivery partner email not found' });
     }
 
+    // ⛔ Block if status is Pending or Rejected
+    if (partner.status === 'Pending') {
+      return res.status(403).json({
+        success: false,
+        message: 'Your application is still under review. OTP cannot be sent at this time.',
+      });
+    }
+
+    if (partner.status === 'Rejected') {
+      return res.status(403).json({
+        success: false,
+        message: 'Your application has been rejected. Contact support for assistance.',
+      });
+    }
+
     await sendEmailOTP(email.toLowerCase());
     res.status(200).json({ success: true, message: 'OTP sent to delivery partner email' });
   } catch (err) {
