@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
-const { encryptData, decryptData } = require('../utils/cryptoUtils');
+const { encryptData, decryptData } = require('../utils/encryptDecrypt');
 
 
 router.post('/', async (req, res) => {
