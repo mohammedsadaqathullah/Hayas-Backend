@@ -29,9 +29,6 @@ const allowedTypes = [
   'aadhaar_back',
 ];
 
-/**
- * POST /api/images/upload-multiple
- */
 router.post('/upload-multiple', upload.array('images'), async (req, res) => {
   const { email, types } = req.body;
   const files = req.files;
@@ -70,7 +67,7 @@ router.post('/upload-multiple', upload.array('images'), async (req, res) => {
 
       const wasExisting = oldImage && oldImage.url;
 
-      // If there was a previous image, delete it from disk
+      // Delete old image
       if (wasExisting) {
         const oldPath = path.join(__dirname, '..', oldImage.url.replace(`${req.protocol}://${req.get('host')}/`, ''));
         if (fs.existsSync(oldPath)) {
@@ -78,13 +75,11 @@ router.post('/upload-multiple', upload.array('images'), async (req, res) => {
         }
       }
 
-      // Save new image to DeliveryPartnersImages
       imageDoc.images[type] = {
         url: newUrl,
         uploadedAt: new Date(),
       };
 
-      // Only sync to DeliveryPartnerUser if we are replacing an existing image
       if (wasExisting) {
         switch (type) {
           case 'profile':
@@ -116,8 +111,30 @@ router.post('/upload-multiple', upload.array('images'), async (req, res) => {
       );
     }
 
+    // 🔁 TEMPORARY IMAGE CLEANUP LOGIC AFTER 1 MINUTE
+    setTimeout(async () => {
+      const userExists = await DeliveryPartnerUser.findOne({ email });
+      if (!userExists) {
+        // Delete files from disk
+        Object.values(imageDoc.images).forEach((img) => {
+          if (img?.url) {
+            const imagePath = path.join(__dirname, '..', img.url.replace(`${req.protocol}://${req.get('host')}/`, ''));
+            if (fs.existsSync(imagePath)) {
+              fs.unlink(imagePath, (err) => {
+                if (err) console.error('Error deleting image:', err);
+              });
+            }
+          }
+        });
+
+        // Delete image document
+        await DeliveryPartnersImages.deleteOne({ email });
+        console.log(`Temporary images for email ${email} deleted after timeout`);
+      }
+    }, 60 * 1000); // 1 minute
+
     res.status(201).json({
-      message: 'Images uploaded successfully',
+      message: 'Images uploaded successfully. complete your registration within ten minutes',
       email,
       images: imageDoc.images,
     });
