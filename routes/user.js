@@ -41,8 +41,8 @@ router.get('/by-email/:email', async (req, res) => {
     if (!user) {
       return res.status(404).json({ error: 'No User found' });
     }
-
-    const encryptedUser = encryptData(user);
+    const userObject = user.toObject();
+    const encryptedUser = encryptData(userObject);
 
     res.status(200).json({ encryptedUser });
   } catch (err) {
