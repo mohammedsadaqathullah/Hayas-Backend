@@ -34,7 +34,8 @@ router.post('/', async (req, res) => {
 
 router.get('/by-email/:email', async (req, res) => {
   try {
-    const decryptedEmail = decryptData(req.params.email);
+        const encrypted = decodeURIComponent(req.params.email);
+    const decryptedEmail = decryptData(encrypted);
 
     const user = await User.findOne({ email: decryptedEmail.toLowerCase() });
     if (!user) {

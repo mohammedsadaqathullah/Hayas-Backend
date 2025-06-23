@@ -11,7 +11,7 @@ function encryptData(data) {
 
 // Decrypt string and return JSON if possible
 function decryptData(encrypted) {
-  const decode = decodeURIComponent(encrypted)
+  // const decode = decodeURIComponent(encrypted)
   const bytes = CryptoJS.AES.decrypt(decode, validationKey);
   const decrypted = bytes.toString(CryptoJS.enc.Utf8);
 
