@@ -4,13 +4,16 @@ const secretKey = 'b14ca5hA1YA133bbcS00123456789012'
 
 // Encrypt any JavaScript object or string
 function encryptData(data) {
-  const stringified = typeof data === 'string' ? data : JSON.stringify(data);
-  return CryptoJS.AES.encrypt(stringified, secretKey).toString();
+  const toJsObject = data.toObject();
+   const encryptedData = CryptoJS.AES.encrypt(toJsObject, validationKey).toString();
+  const uriEncoded = encodeURIComponent(encryptedData);
+  return uriEncoded; // Return URI encoded string
 }
 
 // Decrypt string and return JSON if possible
 function decryptData(encrypted) {
-  const bytes = CryptoJS.AES.decrypt(encrypted, secretKey);
+  const decode = decodeURIComponent(encrypted)
+  const bytes = CryptoJS.AES.decrypt(decode, secretKey);
   const decrypted = bytes.toString(CryptoJS.enc.Utf8);
 
   try {
