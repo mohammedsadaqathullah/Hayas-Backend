@@ -1,24 +1,25 @@
-// routes/deliveryPartnerRoutes.js
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
+const { v4: uuidv4 } = require('uuid');
 const DeliveryPartnersImages = require('../models/DeliveryPartnersImages');
 const DeliveryPartnerUser = require('../models/DeliveryPartnerUser');
+const admin = require('firebase-admin');
 
 const router = express.Router();
-const uploadDir = 'uploads/';
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
-// Multer config
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => {
-    const uniqueName = Date.now() + '-' + file.originalname;
-    cb(null, uniqueName);
-  },
+// Firebase setup
+const serviceAccount = require('../firebase/hayas-backend-firebase-adminsdk-fbsvc-ace06e200f.json');
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  storageBucket: 'hayas-backend.appspot.com',
 });
-const upload = multer({ storage });
+
+const bucket = admin.storage().bucket();
+
+// Multer config (in-memory buffer)
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Allowed types
 const allowedTypes = [
@@ -62,18 +63,22 @@ router.post('/upload-multiple', upload.array('images'), async (req, res) => {
 
       if (!allowedTypes.includes(type)) continue;
 
-      const newUrl = `${req.protocol}://${req.get('host')}/uploads/${file.filename}`;
+      const filename = `${type}-${email}-${Date.now()}`;
+      const firebaseFile = bucket.file(filename);
+
+      const metadata = {
+        contentType: file.mimetype,
+        metadata: {
+          firebaseStorageDownloadTokens: uuidv4(),
+        },
+      };
+
+      await firebaseFile.save(file.buffer, { metadata });
+
+      const newUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(filename)}?alt=media&token=${metadata.metadata.firebaseStorageDownloadTokens}`;
+
       const oldImage = imageDoc.images[type];
-
       const wasExisting = oldImage && oldImage.url;
-
-      // Delete old image
-      if (wasExisting) {
-        const oldPath = path.join(__dirname, '..', oldImage.url.replace(`${req.protocol}://${req.get('host')}/`, ''));
-        if (fs.existsSync(oldPath)) {
-          fs.unlinkSync(oldPath);
-        }
-      }
 
       imageDoc.images[type] = {
         url: newUrl,
@@ -111,21 +116,22 @@ router.post('/upload-multiple', upload.array('images'), async (req, res) => {
       );
     }
 
-    // 🔁 TEMPORARY IMAGE CLEANUP LOGIC AFTER 1 MINUTE
+    // 🔁 TEMPORARY IMAGE CLEANUP LOGIC AFTER 15 MINUTES
     setTimeout(async () => {
       const userExists = await DeliveryPartnerUser.findOne({ email });
       if (!userExists) {
-        // Delete files from disk
-        Object.values(imageDoc.images).forEach((img) => {
+        // Delete files from Firebase
+        const deletePromises = Object.entries(imageDoc.images).map(async ([_, img]) => {
           if (img?.url) {
-            const imagePath = path.join(__dirname, '..', img.url.replace(`${req.protocol}://${req.get('host')}/`, ''));
-            if (fs.existsSync(imagePath)) {
-              fs.unlink(imagePath, (err) => {
-                if (err) console.error('Error deleting image:', err);
-              });
+            const pathMatch = img.url.match(/\/o\/(.*?)\?/);
+            if (pathMatch && pathMatch[1]) {
+              const decodedPath = decodeURIComponent(pathMatch[1]);
+              await bucket.file(decodedPath).delete().catch(console.error);
             }
           }
         });
+
+        await Promise.all(deletePromises);
 
         // Delete image document
         await DeliveryPartnersImages.deleteOne({ email });
@@ -170,6 +176,5 @@ router.get('/:email', async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
-
 
 module.exports = router;
