@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const DeliveryPartnerUser = require('../models/DeliveryPartnerUser');
+const DeliveryPartnersImages = require('./deliveryPartnersImages');
 const { sendEmailOTP, verifyOTP } = require('../models/Otp');
 
 // POST - Register or Update Delivery Partner
@@ -19,6 +20,43 @@ router.post('/', async (req, res) => {
       aadhaarFront,
       aadhaarBack,
     } = req.body;
+
+    // ✅ Check if images exist for this email before proceeding
+    const imagesExist = await DeliveryPartnersImages.findOne({ email });
+    if (!imagesExist) {
+      return res.status(400).json({
+        error: 'Please upload your documents before registering.',
+      });
+    }
+
+// Map of user field names to image keys
+const imageFieldMap = {
+  profileImage: 'profile',
+  dlFront: 'driving_license_front',
+  dlBack: 'driving_license_back',
+  aadhaarFront: 'aadhaar_front',
+  aadhaarBack: 'aadhaar_back',
+};
+
+// Get image doc
+const imageDoc = await DeliveryPartnersImages.findOne({ email });
+
+if (!imageDoc) {
+  return res.status(400).json({
+    error: 'Please upload your documents first before registering.',
+  });
+}
+
+// Find missing images
+const missingTypes = Object.entries(imageFieldMap)
+  .filter(([_, imageKey]) => !imageDoc.images?.[imageKey]?.url)
+  .map(([userField, _]) => userField);
+
+if (missingTypes.length > 0) {
+  return res.status(400).json({
+    error: `Missing document(s): ${missingTypes.join(', ')}. Please upload all required documents before registering.`,
+  });
+}
 
     const updatedUser = await DeliveryPartnerUser.findOneAndUpdate(
       { email },
