@@ -1,6 +1,5 @@
 const CryptoJS = require('crypto-js');
-
-const secretKey = 'b14ca5hA1YA133bbcS00123456789012'
+const validationKey = require('../validationkey')
 
 // Encrypt any JavaScript object or string
 function encryptData(data) {
@@ -13,7 +12,7 @@ function encryptData(data) {
 // Decrypt string and return JSON if possible
 function decryptData(encrypted) {
   const decode = decodeURIComponent(encrypted)
-  const bytes = CryptoJS.AES.decrypt(decode, secretKey);
+  const bytes = CryptoJS.AES.decrypt(decode, validationKey);
   const decrypted = bytes.toString(CryptoJS.enc.Utf8);
 
   try {
