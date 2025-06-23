@@ -1,9 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
-const CryptoJS = require("crypto-js");
+const { encryptData, decryptData } = require('../utils/cryptoUtils');
 
-const secretKey = 'b14ca5hA1YA133bbcS00123456789012'
 
 router.post('/', async (req, res) => {
     try {
@@ -34,23 +33,23 @@ router.post('/', async (req, res) => {
 });
 
 router.get('/by-email/:email', async (req, res) => {
-    try {
-           const encrypted = decodeURIComponent(req.params.email);
-    const bytes = CryptoJS.AES.decrypt(encrypted, secretKey);
-    const decryptedEmail = bytes.toString(CryptoJS.enc.Utf8);
-        const user = await User.findOne({ email: decryptedEmail.toLowerCase() });
+  try {
+    const encrypted = decodeURIComponent(req.params.email);
+    const decryptedEmail = decryptData(encrypted);
 
-        if (!user) {
-            return res.status(404).json({ error: 'No User found' });
-        }
-        
-    const userObject = user.toObject(); 
-    const encryptedUser = CryptoJS.AES.encrypt(JSON.stringify(userObject), secretKey).toString();
+    const user = await User.findOne({ email: decryptedEmail.toLowerCase() });
+    if (!user) {
+      return res.status(404).json({ error: 'No User found' });
+    }
+
+    const userObject = user.toObject();
+    const encryptedUser = encryptData(userObject);
 
     res.status(200).json({ encryptedUser });
-    } catch (err) {
-        res.status(500).json({ error: 'Error fetching User', details: err });
-    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error fetching User', details: err.message });
+  }
 });
 
 router.put('/:email', async (req, res) => {
@@ -60,7 +59,7 @@ router.put('/:email', async (req, res) => {
             req.body,
             { new: true }
         );
-        if (!updated) return res.status(404).json({ error: 'User not found' });
+        if (!updated) return res.status(404).json({ error: 'User no found' });
         res.status(200).json({ message: 'Updated successfully', user: updated });
     } catch (err) {
         res.status(400).json({ error: 'Error updating', details: err });

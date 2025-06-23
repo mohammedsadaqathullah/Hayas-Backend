@@ -4,6 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const DeliveryPartnersImages = require('../models/DeliveryPartnersImages');
+const DeliveryPartnerUser = require('../models/DeliveryPartnerUser');
 
 const router = express.Router();
 const uploadDir = 'uploads/';
@@ -51,28 +52,74 @@ router.post('/upload-multiple', upload.array('images'), async (req, res) => {
   }
 
   try {
-    let user = await DeliveryPartnersImages.findOne({ email });
-    if (!user) {
-      user = new DeliveryPartnersImages({ email });
+    let imageDoc = await DeliveryPartnersImages.findOne({ email });
+    if (!imageDoc) {
+      imageDoc = new DeliveryPartnersImages({ email });
     }
 
-    files.forEach((file, index) => {
-      const type = parsedTypes[index];
-      if (!allowedTypes.includes(type)) return;
+    const updatedFields = {};
 
-      const imageUrl = `${req.protocol}://${req.get('host')}/uploads/${file.filename}`;
-      user.images[type] = {
-        url: imageUrl,
+    for (let i = 0; i < files.length; i++) {
+      const type = parsedTypes[i];
+      const file = files[i];
+
+      if (!allowedTypes.includes(type)) continue;
+
+      const newUrl = `${req.protocol}://${req.get('host')}/uploads/${file.filename}`;
+      const oldImage = imageDoc.images[type];
+
+      const wasExisting = oldImage && oldImage.url;
+
+      // If there was a previous image, delete it from disk
+      if (wasExisting) {
+        const oldPath = path.join(__dirname, '..', oldImage.url.replace(`${req.protocol}://${req.get('host')}/`, ''));
+        if (fs.existsSync(oldPath)) {
+          fs.unlinkSync(oldPath);
+        }
+      }
+
+      // Save new image to DeliveryPartnersImages
+      imageDoc.images[type] = {
+        url: newUrl,
         uploadedAt: new Date(),
       };
-    });
 
-    await user.save();
+      // Only sync to DeliveryPartnerUser if we are replacing an existing image
+      if (wasExisting) {
+        switch (type) {
+          case 'profile':
+            updatedFields.profileImage = newUrl;
+            break;
+          case 'driving_license_front':
+            updatedFields.dlFront = newUrl;
+            break;
+          case 'driving_license_back':
+            updatedFields.dlBack = newUrl;
+            break;
+          case 'aadhaar_front':
+            updatedFields.aadhaarFront = newUrl;
+            break;
+          case 'aadhaar_back':
+            updatedFields.aadhaarBack = newUrl;
+            break;
+        }
+      }
+    }
+
+    await imageDoc.save();
+
+    if (Object.keys(updatedFields).length > 0) {
+      await DeliveryPartnerUser.findOneAndUpdate(
+        { email },
+        { $set: updatedFields },
+        { new: true }
+      );
+    }
 
     res.status(201).json({
       message: 'Images uploaded successfully',
       email,
-      images: user.images,
+      images: imageDoc.images,
     });
   } catch (error) {
     console.error('Upload error:', error);
@@ -107,51 +154,5 @@ router.get('/:email', async (req, res) => {
   }
 });
 
-router.patch('/:email/:type', upload.single('image'), async (req, res) => {
-  const { email, type } = req.params;
-  const file = req.file;
-
-  if (!allowedTypes.includes(type)) {
-    return res.status(400).json({ error: 'Invalid image type' });
-  }
-
-  if (!file) {
-    return res.status(400).json({ error: 'Image file is required' });
-  }
-
-  try {
-    const user = await DeliveryPartnersImages.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    // 🧹 Delete old file if exists
-    const oldImageUrl = user.images[type]?.url;
-    if (oldImageUrl) {
-      const oldFileName = oldImageUrl.split('/uploads/')[1];
-      const oldFilePath = path.join(__dirname, '..', 'uploads', oldFileName);
-      if (fs.existsSync(oldFilePath)) {
-        fs.unlinkSync(oldFilePath); // Deletes the old file
-      }
-    }
-
-    const newImageUrl = `${req.protocol}://${req.get('host')}/uploads/${file.filename}`;
-    user.images[type] = {
-      url: newImageUrl,
-      uploadedAt: new Date(),
-    };
-
-    await user.save();
-
-    res.status(200).json({
-      message: `Image '${type}' updated successfully`,
-      updatedType: type,
-      image: user.images[type],
-    });
-  } catch (error) {
-    console.error('Patch error:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
 
 module.exports = router;
