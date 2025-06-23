@@ -59,7 +59,7 @@ router.put('/:email', async (req, res) => {
             req.body,
             { new: true }
         );
-        if (!updated) return res.status(404).json({ error: 'User no found' });
+        if (!updated) return res.status(404).json({ error: 'User not found' });
         res.status(200).json({ message: 'Updated successfully', user: updated });
     } catch (err) {
         res.status(400).json({ error: 'Error updating', details: err });
