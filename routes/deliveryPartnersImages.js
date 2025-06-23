@@ -131,10 +131,10 @@ router.post('/upload-multiple', upload.array('images'), async (req, res) => {
         await DeliveryPartnersImages.deleteOne({ email });
         console.log(`Temporary images for email ${email} deleted after timeout`);
       }
-    }, 60 * 1000); // 1 minute
+    }, 60 * 15000); // 15 minutes
 
     res.status(201).json({
-      message: 'Images uploaded successfully. complete your registration within ten minutes',
+      message: 'Images uploaded successfully. complete your registration within 15minutes',
       email,
       images: imageDoc.images,
     });
