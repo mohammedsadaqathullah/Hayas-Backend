@@ -1,7 +1,7 @@
 // models/DeliveryPartnersImages.js
 const mongoose = require('mongoose');
 
-const deliveryPartnerSchema = new mongoose.Schema({
+const DeliveryPartnersImagesSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   images: {
     profile: {
@@ -27,4 +27,4 @@ const deliveryPartnerSchema = new mongoose.Schema({
   },
 });
 
-module.exports = mongoose.model('DeliveryPartnersImages', deliveryPartnerSchema);
+module.exports = mongoose.model('DeliveryPartnersImages', DeliveryPartnersImagesSchema);
