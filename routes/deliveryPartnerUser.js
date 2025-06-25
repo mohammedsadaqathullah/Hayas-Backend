@@ -21,43 +21,43 @@ router.post('/', async (req, res) => {
       aadhaarBack,
     } = req.body;
 
+    // 🔍 Check for required fields
+    if (!name || !email || !phone || !address || !pincode) {
+      return res.status(400).json({ error: 'All required fields must be provided.' });
+    }
+
     // ✅ Check if images exist for this email before proceeding
-    const imagesExist = await DeliveryPartnersImages.findOne({ email });
-    if (!imagesExist) {
+    const imageDoc = await DeliveryPartnersImages.findOne({ email });
+    if (!imageDoc) {
       return res.status(400).json({
         error: 'Please upload your documents before registering.',
       });
     }
 
-// Map of user field names to image keys
-const imageFieldMap = {
-  profileImage: 'profile',
-  dlFront: 'driving_license_front',
-  dlBack: 'driving_license_back',
-  aadhaarFront: 'aadhaar_front',
-  aadhaarBack: 'aadhaar_back',
-};
+    // 🧾 Map of user field names to image keys
+    const imageFieldMap = {
+      profileImage: 'profile',
+      dlFront: 'driving_license_front',
+      dlBack: 'driving_license_back',
+      aadhaarFront: 'aadhaar_front',
+      aadhaarBack: 'aadhaar_back',
+    };
 
-// Get image doc
-const imageDoc = await DeliveryPartnersImages.findOne({ email });
+    // 🔍 Find missing images
+    const missingTypes = Object.entries(imageFieldMap)
+      .filter(([_, imageKey]) => !imageDoc.images?.[imageKey]?.url)
+      .map(([userField, _]) => userField);
 
-if (!imageDoc) {
-  return res.status(400).json({
-    error: 'Please upload your documents first before registering.',
-  });
-}
+    if (missingTypes.length > 0) {
+      return res.status(400).json({
+        error: `Missing document(s): ${missingTypes.join(', ')}. Please upload all required documents before registering.`,
+      });
+    }
 
-// Find missing images
-const missingTypes = Object.entries(imageFieldMap)
-  .filter(([_, imageKey]) => !imageDoc.images?.[imageKey]?.url)
-  .map(([userField, _]) => userField);
+    // 🧠 Check if user already exists
+    const existingUser = await DeliveryPartnerUser.findOne({ email });
 
-if (missingTypes.length > 0) {
-  return res.status(400).json({
-    error: `Missing document(s): ${missingTypes.join(', ')}. Please upload all required documents before registering.`,
-  });
-}
-
+    // 📥 Register or update the user
     const updatedUser = await DeliveryPartnerUser.findOneAndUpdate(
       { email },
       {
@@ -77,12 +77,14 @@ if (missingTypes.length > 0) {
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );
 
-    const message = updatedUser.isNew ? 'User registered successfully' : 'User updated successfully';
+    const message = existingUser
+      ? 'User updated successfully'
+      : 'User registered successfully';
 
     res.status(201).json({ message, user: updatedUser });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error', err });
+    console.error('Register error:', err);
+    res.status(500).json({ error: 'Internal server error', details: err.message });
   }
 });
 
