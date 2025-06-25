@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const DeliveryPartnerUser = require('../models/DeliveryPartnerUser');
-const DeliveryPartnersImages = require('./models/deliveryPartnersImages');
+const DeliveryPartnersImages = require('../models/DeliveryPartnersImages');
 const { sendEmailOTP, verifyOTP } = require('../models/Otp');
 
 // POST - Register or Update Delivery Partner
