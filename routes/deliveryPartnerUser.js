@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const DeliveryPartnerUser = require('../models/DeliveryPartnerUser');
 const DeliveryPartnersImages = require('../models/DeliveryPartnersImages');
+const DeliveryPartnerDutyStatus = require('../models/DeliveryPartnerDutyStatus');
+const Order = require('../models/Order');
 const { sendEmailOTP, verifyOTP } = require('../models/Otp');
 
 // POST - Register or Update Delivery Partner
@@ -164,6 +166,7 @@ router.patch('/status', async (req, res) => {
 });
 
 // GET - Fetch a delivery partner by email (email in body)
+// POST - Fetch delivery partner details, duty status, and assigned orders
 router.post('/by-email', async (req, res) => {
   const { email } = req.body;
 
@@ -173,18 +176,28 @@ router.post('/by-email', async (req, res) => {
 
   try {
     const user = await DeliveryPartnerUser.findOne({ email });
+    const dutyStatus = await DeliveryPartnerDutyStatus.findOne({ email });
+
+    const orders = await Order.find({
+      statusHistory: {
+        $elemMatch: { email }
+      }
+    }).sort({ createdAt: -1 });
 
     if (!user) {
       return res.status(404).json({ error: 'Delivery partner not found' });
     }
 
-    res.status(200).json(user);
+    res.status(200).json({
+      userDetails: user,
+      dutyStatus: dutyStatus || { message: 'No duty status found for this user.' },
+      orderHistory: orders.length ? orders : 'No orders assigned to this partner.'
+    });
   } catch (err) {
     console.error('Fetch by email error:', err);
     res.status(500).json({ error: 'Failed to fetch user by email' });
   }
 });
-
 
 
 module.exports = router;
