@@ -39,6 +39,7 @@ app.use('/orders', require('./routes/order')); // ✅ this should match with the
 app.use('/delivery-partner/auth', require('./routes/deliveryLogin'));
 app.use('/delivery-partner', require('./routes/deliveryPartnerUser'));
 app.use('/delivery-partners-images', require('./routes/deliveryPartnersImages'))
+app.use('/delivery-status', require('./routes/deliveryPartnerDutyStatus'))
 //for public
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
