@@ -59,8 +59,8 @@ router.post("/", async (req, res) => {
       address,
       userEmail,
       status: "PENDING",
-      rejectedByEmails: [], // Initialize empty array
-      statusHistory: [], // Initialize empty array
+      rejectedByEmails: [],
+      statusHistory: [],
     })
 
     await newOrder.save()
@@ -140,7 +140,11 @@ router.patch("/:id/status", async (req, res) => {
     // Get currently assigned email from statusHistory
     const currentlyAssignedEmail = getAssignedEmail(order)
 
-    // Handle CONFIRMED status
+    // Variable to track if we should update the main status
+    let shouldUpdateMainStatus = false
+    let newMainStatus = order.status // Default to current status
+
+    // Handle CONFIRMED status (Accept)
     if (status === "CONFIRMED") {
       // If already assigned to someone else, no one else can accept it
       if (currentlyAssignedEmail && currentlyAssignedEmail !== updatedByEmail) {
@@ -152,11 +156,12 @@ router.patch("/:id/status", async (req, res) => {
         return res.status(400).json({ message: "Cannot confirm a delivered order." })
       }
 
-      // Update main status
-      order.status = "CONFIRMED"
+      // Update main status to CONFIRMED
+      shouldUpdateMainStatus = true
+      newMainStatus = "CONFIRMED"
     }
 
-    // Handle CANCELLED status (rejection)
+    // Handle CANCELLED status (Reject)
     else if (status === "CANCELLED") {
       // Check if order is already delivered
       if (order.status === "DELIVERED") {
@@ -168,11 +173,16 @@ router.patch("/:id/status", async (req, res) => {
         order.rejectedByEmails.push(updatedByEmail)
       }
 
-      // Only change main status to CANCELLED if the person rejecting is the one who confirmed it
+      // If the person rejecting is the one who confirmed it, change main status to CANCELLED
       if (currentlyAssignedEmail === updatedByEmail) {
-        order.status = "CANCELLED"
+        shouldUpdateMainStatus = true
+        newMainStatus = "CANCELLED"
       }
-      // If not assigned to anyone or assigned to someone else, just add to rejected list (main status stays PENDING)
+      // If it's a different person rejecting a PENDING order, keep it PENDING
+      else if (order.status === "PENDING") {
+        shouldUpdateMainStatus = true
+        newMainStatus = "PENDING" // Keep as PENDING
+      }
     }
 
     // Handle DELIVERED status
@@ -187,22 +197,29 @@ router.patch("/:id/status", async (req, res) => {
         return res.status(400).json({ message: "Order must be confirmed before it can be delivered." })
       }
 
-      // Update main status
-      order.status = "DELIVERED"
+      // Update main status to DELIVERED
+      shouldUpdateMainStatus = true
+      newMainStatus = "DELIVERED"
     }
 
-    // Handle PENDING status (if someone wants to reset to pending)
+    // Handle PENDING status
     else if (status === "PENDING") {
       // Only allow if current status is not DELIVERED
       if (order.status === "DELIVERED") {
         return res.status(400).json({ message: "Cannot change status of a delivered order back to pending." })
       }
       
-      // Update main status
-      order.status = "PENDING"
+      // Update main status to PENDING
+      shouldUpdateMainStatus = true
+      newMainStatus = "PENDING"
     }
 
-    // ALWAYS add to status history regardless of the status change
+    // Update the main status if needed
+    if (shouldUpdateMainStatus) {
+      order.status = newMainStatus
+    }
+
+    // ALWAYS add to status history
     order.statusHistory.push({
       email: updatedByEmail,
       status,
@@ -210,6 +227,10 @@ router.patch("/:id/status", async (req, res) => {
     })
 
     await order.save()
+
+    console.log(`Order ${order._id} status updated:`)
+    console.log(`- Main status: ${order.status}`)
+    console.log(`- Action taken: ${status} by ${updatedByEmail}`)
 
     // Emit socket event
     req.io.emit("order-status-updated", {
