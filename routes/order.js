@@ -11,17 +11,20 @@ function formatDate(date) {
 function getAssignedEmail(order) {
   // Find the most recent CONFIRMED status in statusHistory
   const confirmedEntry = order.statusHistory
-    .filter(entry => entry.status === 'CONFIRMED')
+    .filter((entry) => entry.status === "CONFIRMED")
     .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))[0]
-  
+
   return confirmedEntry ? confirmedEntry.email : null
 }
 
 // Helper function to check if user has confirmed this order
 function hasUserConfirmed(order, userEmail) {
-  return order.statusHistory.some(entry => 
-    entry.email === userEmail && entry.status === 'CONFIRMED'
-  )
+  return order.statusHistory.some((entry) => entry.email === userEmail && entry.status === "CONFIRMED")
+}
+
+// Helper function to check if user has cancelled this order
+function hasUserCancelled(order, userEmail) {
+  return order.statusHistory.some((entry) => entry.email === userEmail && entry.status === "CANCELLED")
 }
 
 // POST /orders
@@ -117,7 +120,8 @@ router.patch("/:id/status", async (req, res) => {
       return res.status(400).json({ message: "Status and updatedByEmail are required." })
     }
 
-    const validStatuses = ["PENDING", "CONFIRMED", "CANCELLED"]
+    // Updated valid statuses to include DELIVERED
+    const validStatuses = ["PENDING", "CONFIRMED", "CANCELLED", "DELIVERED"]
 
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: "Invalid status value." })
@@ -147,10 +151,20 @@ router.patch("/:id/status", async (req, res) => {
         return res.status(409).json({ message: "Order already accepted by another captain." })
       }
 
+      // Check if order is already delivered
+      if (order.status === "DELIVERED") {
+        return res.status(400).json({ message: "Cannot confirm a delivered order." })
+      }
+
       order.status = "CONFIRMED"
     }
     // Handle CANCELLED status (rejection)
     else if (status === "CANCELLED") {
+      // Check if order is already delivered
+      if (order.status === "DELIVERED") {
+        return res.status(400).json({ message: "Cannot cancel a delivered order." })
+      }
+
       // Add to rejected list if not already there
       if (!order.rejectedByEmails.includes(updatedByEmail)) {
         order.rejectedByEmails.push(updatedByEmail)
@@ -161,6 +175,20 @@ router.patch("/:id/status", async (req, res) => {
         order.status = "CANCELLED"
       }
       // If not assigned to anyone or assigned to someone else, just add to rejected list (status stays PENDING)
+    }
+    // Handle DELIVERED status
+    else if (status === "DELIVERED") {
+      // Only the assigned person can mark as delivered
+      if (currentlyAssignedEmail !== updatedByEmail) {
+        return res.status(403).json({ message: "Only the assigned delivery partner can mark order as delivered." })
+      }
+
+      // Order must be confirmed before it can be delivered
+      if (order.status !== "CONFIRMED") {
+        return res.status(400).json({ message: "Order must be confirmed before it can be delivered." })
+      }
+
+      order.status = "DELIVERED"
     }
 
     // Add to status history
