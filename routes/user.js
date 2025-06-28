@@ -34,10 +34,11 @@ router.post('/', async (req, res) => {
 
 router.get('/by-email/:email', async (req, res) => {
   try {
-        const encrypted = decodeURIComponent(req.params.email);
-    const decryptedEmail = decryptData(encrypted);
+    //     const encrypted = decodeURIComponent(req.params.email);
+    // const decryptedEmail = decryptData(encrypted);
+    const email = req.params.email
 
-    const user = await User.findOne({ email: decryptedEmail.toLowerCase() });
+    const user = await User.findOne({ email: email.toLowerCase() });
     if (!user) {
       return res.status(404).json({ error: 'No User found' });
     }
