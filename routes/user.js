@@ -43,9 +43,9 @@ router.get('/by-email/:email', async (req, res) => {
       return res.status(404).json({ error: 'No User found' });
     }
     const userObject = user.toObject();
-    const encryptedUser = encryptData(userObject);
+    // const encryptedUser = encryptData(userObject);
 
-    res.status(200).json({ encryptedUser });
+    res.status(200).json({ userObject });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error fetching User', details: err.message });
