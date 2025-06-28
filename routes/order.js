@@ -18,12 +18,10 @@ function getAssignedEmail(order) {
 
 // Helper function to check if all active partners have rejected
 function areAllPartnersRejected(order, activePartnerEmails) {
-  const rejectedEmails = order.statusHistory
-    .filter(entry => entry.status === "CANCELLED")
-    .map(entry => entry.email)
-  
+  const rejectedEmails = order.statusHistory.filter((entry) => entry.status === "CANCELLED").map((entry) => entry.email)
+
   // Check if all active partners have rejected
-  return activePartnerEmails.every(email => rejectedEmails.includes(email))
+  return activePartnerEmails.every((email) => rejectedEmails.includes(email))
 }
 
 // Helper function to check if user has confirmed this order
@@ -90,9 +88,10 @@ router.post("/", async (req, res) => {
   }
 })
 
-// GET /orders — Get all orders
+// GET /orders — Get all orders (newest first)
 router.get("/", async (req, res) => {
   try {
+    // Sort by createdAt in descending order (newest first)
     const orders = await Order.find().sort({ createdAt: -1 })
     res.status(200).json(orders)
   } catch (error) {
@@ -101,10 +100,11 @@ router.get("/", async (req, res) => {
   }
 })
 
-// GET /orders/:email — Get orders by user email
+// GET /orders/:email — Get orders by user email (newest first)
 router.get("/:email", async (req, res) => {
   try {
     const email = req.params.email
+    // Sort by createdAt in descending order (newest first)
     const orders = await Order.find({ userEmail: email }).sort({ createdAt: -1 })
 
     if (!orders.length) {
@@ -165,7 +165,7 @@ router.patch("/:id/status", async (req, res) => {
         },
       },
     })
-    const activePartnerEmails = activePartners.map(partner => partner.email)
+    const activePartnerEmails = activePartners.map((partner) => partner.email)
 
     // Handle CONFIRMED status (Accept)
     if (status === "CONFIRMED") {
@@ -212,18 +212,21 @@ router.patch("/:id/status", async (req, res) => {
       // If this rejection means all active partners have rejected, mark as CANCELLED
       else {
         // Add this rejection to status history first (temporarily)
-        const tempStatusHistory = [...order.statusHistory, {
-          email: updatedByEmail,
-          status: "CANCELLED",
-          updatedAt: new Date(),
-        }]
-        
+        const tempStatusHistory = [
+          ...order.statusHistory,
+          {
+            email: updatedByEmail,
+            status: "CANCELLED",
+            updatedAt: new Date(),
+          },
+        ]
+
         // Check if all partners have now rejected
         const rejectedEmails = tempStatusHistory
-          .filter(entry => entry.status === "CANCELLED")
-          .map(entry => entry.email)
-        
-        if (activePartnerEmails.length > 0 && activePartnerEmails.every(email => rejectedEmails.includes(email))) {
+          .filter((entry) => entry.status === "CANCELLED")
+          .map((entry) => entry.email)
+
+        if (activePartnerEmails.length > 0 && activePartnerEmails.every((email) => rejectedEmails.includes(email))) {
           order.status = "CANCELLED"
         } else {
           order.status = "PENDING" // Keep as PENDING if not all partners have rejected
@@ -253,7 +256,7 @@ router.patch("/:id/status", async (req, res) => {
       if (order.status === "DELIVERED") {
         return res.status(400).json({ message: "Cannot change status of a delivered order back to pending." })
       }
-      
+
       // Update main status to PENDING
       order.status = "PENDING"
     }
@@ -266,6 +269,13 @@ router.patch("/:id/status", async (req, res) => {
     })
 
     await order.save()
+
+    console.log(`Order ${order._id} status updated:`)
+    console.log(`- Main status: ${order.status}`)
+    console.log(`- Action taken: ${status} by ${updatedByEmail}`)
+    console.log(`- Active partners: ${activePartnerEmails.length}`)
+    console.log(`- Rejected by: ${order.rejectedByEmails.length} partners`)
+
     // Emit socket event
     req.io.emit("order-status-updated", {
       message: "Order status updated",
