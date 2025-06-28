@@ -7,7 +7,7 @@ function formatDate(date) {
   return date.toISOString().split('T')[0]; // YYYY-MM-DD
 }
 
-// POST /orders — Place a new order
+// POST /orders
 router.post('/', async (req, res) => {
   try {
     const { products, address, userEmail } = req.body;
@@ -18,36 +18,39 @@ router.post('/', async (req, res) => {
 
     const today = formatDate(new Date());
 
-    const activePartner = await DeliveryPartnerDutyStatus.findOne({
+    const activePartners = await DeliveryPartnerDutyStatus.find({
       statusLog: {
         $elemMatch: {
           date: today,
           sessions: {
             $elemMatch: {
               dutyTrue: { $ne: null },
-              dutyFalse: null
-            }
-          }
-        }
-      }
+              dutyFalse: null,
+            },
+          },
+        },
+      },
     });
 
-    if (!activePartner) {
-      return res.status(403).json({ message: 'No delivery partner available' });
+    if (!activePartners.length) {
+      return res.status(403).json({ message: 'No delivery partners available' });
     }
 
     const newOrder = new Order({
       products,
       address,
       userEmail,
-      status: 'PENDING'
+      status: 'PENDING',
     });
 
     await newOrder.save();
 
-    req.io.emit('new-order', {
-      message: 'New order received',
-      order: newOrder
+    // Notify all active partners
+    activePartners.forEach(partner => {
+      req.io.to(partner.email).emit('new-order', {
+        message: 'New order received',
+        order: newOrder,
+      });
     });
 
     res.status(201).json({ message: 'Order placed successfully!', order: newOrder });
@@ -84,8 +87,6 @@ router.get('/:email', async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 });
-
-// PATCH /orders/:id/status — Update order status
 router.patch('/:id/status', async (req, res) => {
   try {
     const { status, updatedByEmail } = req.body;
@@ -96,30 +97,34 @@ router.patch('/:id/status', async (req, res) => {
     }
 
     const order = await Order.findById(req.params.id);
-    if (!order) {
-      return res.status(404).json({ message: 'Order not found.' });
+    if (!order) return res.status(404).json({ message: 'Order not found.' });
+
+    // If already assigned, no one else can accept it
+    if (order.assignedToEmail && status === 'CONFIRMED') {
+      return res.status(409).json({ message: 'Order already accepted by another captain.' });
     }
 
-    // ✅ Assign delivery partner when confirmed
     if (status === 'CONFIRMED') {
+      order.status = 'CONFIRMED';
       order.assignedToEmail = updatedByEmail;
+    } else if (status === 'CANCELLED') {
+      // Just add to rejected list, don't change status if unassigned
+      if (!order.rejectedByEmails.includes(updatedByEmail)) {
+        order.rejectedByEmails.push(updatedByEmail);
+      }
     }
 
-    // Update status
-    order.status = status;
-
-    // Add to status history
     order.statusHistory.push({
       email: updatedByEmail,
       status,
-      updatedAt: new Date()
+      updatedAt: new Date(),
     });
 
     await order.save();
 
     req.io.emit('order-status-updated', {
       message: 'Order status updated',
-      order
+      order,
     });
 
     res.status(200).json(order);
@@ -128,5 +133,6 @@ router.patch('/:id/status', async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 });
+
 
 module.exports = router;
