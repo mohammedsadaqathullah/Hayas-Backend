@@ -66,7 +66,14 @@ const orderSchema = new mongoose.Schema({
   status:{
     type: String,
     required: false
-  }
+  },
+  statusHistory: [
+    {
+      email: String,
+      status: String,
+      updatedAt: { type: Date, default: Date.now }
+    }
+  ]
 });
 
 module.exports = mongoose.model('Order', orderSchema);

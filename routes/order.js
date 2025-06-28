@@ -1,6 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const Order = require('../models/Order');
+const DeliveryPartnerDutyStatus = require('../models/DeliveryPartnerDutyStatus');
+
+function formatDate(date) {
+  return date.toISOString().split('T')[0]; // YYYY-MM-DD
+}
 
 // POST /orders — Place a new order
 router.post('/', async (req, res) => {
@@ -11,16 +16,35 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ message: 'Missing required fields.' });
     }
 
+    const today = formatDate(new Date());
+
+    const activePartner = await DeliveryPartnerDutyStatus.findOne({
+      statusLog: {
+        $elemMatch: {
+          date: today,
+          sessions: {
+            $elemMatch: {
+              dutyTrue: { $ne: null },
+              dutyFalse: null
+            }
+          }
+        }
+      }
+    });
+
+    if (!activePartner) {
+      return res.status(403).json({ message: 'No delivery partner available' });
+    }
+
     const newOrder = new Order({
       products,
       address,
       userEmail,
-      status: 'PENDING' // default status
+      status: 'PENDING'
     });
 
     await newOrder.save();
 
-    // Emit socket event to notify admin dashboard
     req.io.emit('new-order', {
       message: 'New order received',
       order: newOrder
@@ -64,30 +88,41 @@ router.get('/:email', async (req, res) => {
 // PATCH /orders/:id/status — Update order status
 router.patch('/:id/status', async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, updatedByEmail } = req.body;
     const validStatuses = ['PENDING', 'CONFIRMED', 'CANCELLED'];
 
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: 'Invalid status value.' });
     }
 
-    const updatedOrder = await Order.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true }
-    );
-
-    if (!updatedOrder) {
+    const order = await Order.findById(req.params.id);
+    if (!order) {
       return res.status(404).json({ message: 'Order not found.' });
     }
 
-    // Emit status update to connected clients
-    req.io.emit('order-status-updated', {
-      message: 'Order status updated',
-      order: updatedOrder
+    // ✅ Assign delivery partner when confirmed
+    if (status === 'CONFIRMED') {
+      order.assignedToEmail = updatedByEmail;
+    }
+
+    // Update status
+    order.status = status;
+
+    // Add to status history
+    order.statusHistory.push({
+      email: updatedByEmail,
+      status,
+      updatedAt: new Date()
     });
 
-    res.status(200).json(updatedOrder);
+    await order.save();
+
+    req.io.emit('order-status-updated', {
+      message: 'Order status updated',
+      order
+    });
+
+    res.status(200).json(order);
   } catch (error) {
     console.error('Error updating order status:', error);
     res.status(500).json({ message: 'Internal Server Error' });
