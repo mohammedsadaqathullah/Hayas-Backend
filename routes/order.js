@@ -13,7 +13,6 @@ function getAssignedEmail(order) {
   const confirmedEntry = order.statusHistory
     .filter((entry) => entry.status === "CONFIRMED")
     .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))[0]
-
   return confirmedEntry ? confirmedEntry.email : null
 }
 
@@ -37,7 +36,6 @@ router.post("/", async (req, res) => {
     }
 
     const today = formatDate(new Date())
-
     const activePartners = await DeliveryPartnerDutyStatus.find({
       statusLog: {
         $elemMatch: {
@@ -122,13 +120,11 @@ router.patch("/:id/status", async (req, res) => {
 
     // Updated valid statuses to include DELIVERED
     const validStatuses = ["PENDING", "CONFIRMED", "CANCELLED", "DELIVERED"]
-
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: "Invalid status value." })
     }
 
     const order = await Order.findById(req.params.id)
-
     if (!order) {
       return res.status(404).json({ message: "Order not found." })
     }
@@ -156,8 +152,10 @@ router.patch("/:id/status", async (req, res) => {
         return res.status(400).json({ message: "Cannot confirm a delivered order." })
       }
 
+      // Update main status
       order.status = "CONFIRMED"
     }
+
     // Handle CANCELLED status (rejection)
     else if (status === "CANCELLED") {
       // Check if order is already delivered
@@ -170,12 +168,13 @@ router.patch("/:id/status", async (req, res) => {
         order.rejectedByEmails.push(updatedByEmail)
       }
 
-      // Only change status to CANCELLED if the person rejecting is the one who confirmed it
+      // Only change main status to CANCELLED if the person rejecting is the one who confirmed it
       if (currentlyAssignedEmail === updatedByEmail) {
         order.status = "CANCELLED"
       }
-      // If not assigned to anyone or assigned to someone else, just add to rejected list (status stays PENDING)
+      // If not assigned to anyone or assigned to someone else, just add to rejected list (main status stays PENDING)
     }
+
     // Handle DELIVERED status
     else if (status === "DELIVERED") {
       // Only the assigned person can mark as delivered
@@ -188,10 +187,22 @@ router.patch("/:id/status", async (req, res) => {
         return res.status(400).json({ message: "Order must be confirmed before it can be delivered." })
       }
 
+      // Update main status
       order.status = "DELIVERED"
     }
 
-    // Add to status history
+    // Handle PENDING status (if someone wants to reset to pending)
+    else if (status === "PENDING") {
+      // Only allow if current status is not DELIVERED
+      if (order.status === "DELIVERED") {
+        return res.status(400).json({ message: "Cannot change status of a delivered order back to pending." })
+      }
+      
+      // Update main status
+      order.status = "PENDING"
+    }
+
+    // ALWAYS add to status history regardless of the status change
     order.statusHistory.push({
       email: updatedByEmail,
       status,
