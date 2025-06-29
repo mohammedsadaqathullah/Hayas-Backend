@@ -131,6 +131,86 @@ router.patch("/:id/status", async (req, res) => {
       return res.status(400).json({ message: "Invalid status value." })
     }
 
+    // 🚀 CRITICAL: Use findOneAndUpdate with atomic operation to prevent race conditions
+    if (status === "CONFIRMED") {
+      // Try to atomically update ONLY if status is still PENDING and not already assigned
+      const updatedOrder = await Order.findOneAndUpdate(
+        {
+          _id: req.params.id,
+          status: "PENDING", // Only update if still PENDING
+          $nor: [
+            { "statusHistory.status": "CONFIRMED" }, // No confirmed entries exist
+          ],
+        },
+        {
+          $set: { status: "CONFIRMED" },
+          $push: {
+            statusHistory: {
+              email: updatedByEmail,
+              status: "CONFIRMED",
+              updatedAt: new Date(),
+            },
+          },
+        },
+        { new: true }, // Return updated document
+      )
+
+      if (!updatedOrder) {
+        // Order was already assigned to someone else
+        return res.status(409).json({
+          message: "Order already accepted by another captain.",
+          success: false,
+        })
+      }
+
+      // Success! This partner got the order
+      const today = formatDate(new Date())
+      const activePartners = await DeliveryPartnerDutyStatus.find({
+        statusLog: {
+          $elemMatch: {
+            date: today,
+            sessions: {
+              $elemMatch: {
+                dutyTrue: { $ne: null },
+                dutyFalse: null,
+              },
+            },
+          },
+        },
+      })
+
+      // 🚀 CRITICAL: Notify ALL other active partners that this order is now assigned
+      activePartners.forEach((partner) => {
+        if (partner.email !== updatedByEmail) {
+          req.io.to(partner.email).emit("order-assigned", {
+            message: "Order has been assigned to another partner",
+            orderId: updatedOrder._id,
+            assignedTo: updatedByEmail,
+          })
+        }
+      })
+
+      // Notify the customer
+      req.io.to(updatedOrder.userEmail).emit("order-status-updated", {
+        message: "Your order has been confirmed by a delivery partner",
+        order: updatedOrder,
+      })
+
+      // Notify the assigned partner with success
+      req.io.to(updatedByEmail).emit("order-status-updated", {
+        message: "Order confirmed successfully",
+        order: updatedOrder,
+      })
+
+      console.log(`🎯 Order ${updatedOrder._id} ATOMICALLY assigned to ${updatedByEmail}`)
+      return res.status(200).json({
+        ...updatedOrder.toObject(),
+        success: true,
+        message: "Order accepted successfully!",
+      })
+    }
+
+    // For all other status updates, use regular findById approach
     const order = await Order.findById(req.params.id)
     if (!order) {
       return res.status(404).json({ message: "Order not found." })
@@ -158,36 +238,7 @@ router.patch("/:id/status", async (req, res) => {
 
     const activePartnerEmails = activePartners.map((partner) => partner.email)
 
-    if (status === "CONFIRMED") {
-      if (currentlyAssignedEmail && currentlyAssignedEmail !== updatedByEmail) {
-        return res.status(409).json({ message: "Order already accepted by another captain." })
-      }
-
-      if (order.status === "DELIVERED") {
-        return res.status(400).json({ message: "Cannot confirm a delivered order." })
-      }
-
-      if (hasUserCancelled(order, updatedByEmail)) {
-        return res.status(400).json({ message: "You have already rejected this order." })
-      }
-
-      order.status = "CONFIRMED"
-
-      // 🚀 CRITICAL: Notify all OTHER active partners that this order is now assigned
-      activePartners.forEach((partner) => {
-        if (partner.email !== updatedByEmail) {
-          req.io.to(partner.email).emit("order-assigned", {
-            message: "Order has been assigned to another partner",
-            orderId: order._id,
-            assignedTo: updatedByEmail,
-          })
-        }
-      })
-
-      console.log(
-        `🎯 Order ${order._id} assigned to ${updatedByEmail}, notified ${activePartners.length - 1} other partners`,
-      )
-    } else if (status === "CANCELLED") {
+    if (status === "CANCELLED") {
       if (order.status === "DELIVERED") {
         return res.status(400).json({ message: "Cannot cancel a delivered order." })
       }
@@ -260,16 +311,12 @@ router.patch("/:id/status", async (req, res) => {
 
     await order.save()
 
-    console.log(`Order ${order._id} status updated by ${updatedByEmail} to ${status}`)
-
-    // ✅ Emit update to relevant users
-    // 1. To the customer
+    // Emit updates to relevant users
     req.io.to(order.userEmail).emit("order-status-updated", {
       message: "Order status updated",
       order,
     })
 
-    // 2. To the assigned captain
     const assignedEmail = getAssignedEmail(order)
     if (assignedEmail && assignedEmail !== order.userEmail) {
       req.io.to(assignedEmail).emit("order-status-updated", {
@@ -278,6 +325,7 @@ router.patch("/:id/status", async (req, res) => {
       })
     }
 
+    console.log(`Order ${order._id} status updated by ${updatedByEmail} to ${status}`)
     res.status(200).json(order)
   } catch (error) {
     console.error("Error updating order status:", error)
