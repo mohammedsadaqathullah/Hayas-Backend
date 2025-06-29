@@ -27,27 +27,30 @@ function setOrderTimeout(orderId, io) {
       try {
         console.log(`⏰ Order ${orderId} timeout triggered - no partners accepted within 2 minutes`)
 
-        const order = await Order.findById(orderId)
-        if (!order) {
-          console.log(`Order ${orderId} not found during timeout`)
-          return
-        }
+        // Use atomic operation to check and update timeout status
+        const updatedOrder = await Order.findOneAndUpdate(
+          {
+            _id: orderId,
+            status: "PENDING", // Only timeout if still pending
+          },
+          {
+            $set: { status: "TIMEOUT" },
+            $push: {
+              statusHistory: {
+                email: "system",
+                status: "TIMEOUT",
+                updatedAt: new Date(),
+              },
+            },
+          },
+          { new: true },
+        )
 
-        // Only timeout if order is still PENDING
-        if (order.status === "PENDING") {
-          order.status = "TIMEOUT"
-          order.statusHistory.push({
-            email: "system",
-            status: "TIMEOUT",
-            updatedAt: new Date(),
-          })
-
-          await order.save()
-
+        if (updatedOrder) {
           // Notify customer about timeout
-          io.to(order.userEmail).emit("order-timeout", {
+          io.to(updatedOrder.userEmail).emit("order-timeout", {
             message: "No delivery partners available at the moment",
-            order: order,
+            order: updatedOrder,
             supportContact: {
               phone: "+91 9876543210", // Replace with actual support number
               message: "Contact support for immediate assistance",
@@ -55,6 +58,8 @@ function setOrderTimeout(orderId, io) {
           })
 
           console.log(`📞 Order ${orderId} timed out - customer notified`)
+        } else {
+          console.log(`Order ${orderId} was already accepted/cancelled - timeout ignored`)
         }
 
         // Remove from timeout map
@@ -154,6 +159,20 @@ function hasUserCancelled(order, userEmail) {
   return order.statusHistory.some((entry) => entry.email === userEmail && entry.status === "CANCELLED")
 }
 
+// Helper function to notify partners about order being unavailable
+function notifyPartnersOrderUnavailable(io, activePartners, excludeEmail, orderId, assignedTo) {
+  activePartners.forEach((partner) => {
+    if (partner.email !== excludeEmail) {
+      io.to(partner.email).emit("order-no-longer-available", {
+        message: "Order has been assigned to another partner",
+        orderId: orderId,
+        assignedTo: assignedTo,
+        action: "hide_order", // Instruction to hide the order from UI
+      })
+    }
+  })
+}
+
 // POST /orders
 router.post("/", async (req, res) => {
   try {
@@ -201,9 +220,11 @@ router.post("/", async (req, res) => {
       req.io.to(partner.email).emit("new-order", {
         message: "New order received",
         order: newOrder,
+        timestamp: new Date().toISOString(),
       })
     })
 
+    console.log(`📦 New order ${newOrder._id} created and sent to ${activePartners.length} partners`)
     res.status(201).json({ message: "Order placed successfully!", order: newOrder })
   } catch (error) {
     console.error("Order creation failed:", error)
@@ -255,13 +276,37 @@ router.patch("/:id/status", async (req, res) => {
       return res.status(400).json({ message: "Invalid status value." })
     }
 
-    // Handle CONFIRMED status with atomic operation
+    // Handle CONFIRMED status with enhanced atomic operation and race condition prevention
     if (status === "CONFIRMED") {
+      console.log(`🎯 Partner ${updatedByEmail} attempting to accept order ${req.params.id}`)
+
+      // First, check if the partner has already rejected this order
+      const existingOrder = await Order.findById(req.params.id)
+      if (!existingOrder) {
+        return res.status(404).json({ message: "Order not found." })
+      }
+
+      // Check if partner already rejected this order
+      const hasRejected = existingOrder.statusHistory.some(
+        (entry) => entry.email === updatedByEmail && entry.status === "CANCELLED",
+      )
+
+      if (hasRejected) {
+        return res.status(400).json({
+          message: "You have already rejected this order and cannot accept it.",
+          success: false,
+        })
+      }
+
+      // Use atomic operation with multiple conditions to ensure only one partner can accept
       const updatedOrder = await Order.findOneAndUpdate(
         {
           _id: req.params.id,
-          status: "PENDING",
-          $nor: [{ "statusHistory.status": "CONFIRMED" }],
+          status: "PENDING", // Must be pending
+          $nor: [
+            { "statusHistory.status": "CONFIRMED" }, // No confirmed entries
+            { "statusHistory.email": updatedByEmail, "statusHistory.status": "CANCELLED" }, // Partner hasn't rejected
+          ],
         },
         {
           $set: { status: "CONFIRMED" },
@@ -277,9 +322,13 @@ router.patch("/:id/status", async (req, res) => {
       )
 
       if (!updatedOrder) {
+        console.log(
+          `❌ Partner ${updatedByEmail} failed to accept order ${req.params.id} - race condition or already accepted`,
+        )
         return res.status(409).json({
-          message: "Order already accepted by another captain.",
+          message: "Order already accepted by another partner or you have previously rejected it.",
           success: false,
+          action: "hide_order", // Tell frontend to hide this order
         })
       }
 
@@ -288,6 +337,100 @@ router.patch("/:id/status", async (req, res) => {
 
       // Update delivery partner stats for CONFIRMED order
       await updateDeliveryPartnerStats(updatedByEmail, "CONFIRMED", updatedOrder.createdAt)
+
+      // Get all active partners for notifications
+      const today = formatDate(new Date())
+      const activePartners = await DeliveryPartnerDutyStatus.find({
+        statusLog: {
+          $elemMatch: {
+            date: today,
+            sessions: {
+              $elemMatch: {
+                dutyTrue: { $ne: null },
+                dutyFalse: null,
+              },
+            },
+          },
+        },
+      })
+
+      // Notify all other partners that this order is no longer available
+      notifyPartnersOrderUnavailable(req.io, activePartners, updatedByEmail, updatedOrder._id, updatedByEmail)
+
+      // Notify customer about acceptance
+      req.io.to(updatedOrder.userEmail).emit("order-status-updated", {
+        message: "Your order has been confirmed by a delivery partner",
+        order: updatedOrder,
+      })
+
+      // Notify the accepting partner
+      req.io.to(updatedByEmail).emit("order-status-updated", {
+        message: "Order confirmed successfully",
+        order: updatedOrder,
+      })
+
+      console.log(`✅ Order ${updatedOrder._id} SUCCESSFULLY assigned to ${updatedByEmail}`)
+      return res.status(200).json({
+        ...updatedOrder.toObject(),
+        success: true,
+        message: "Order accepted successfully!",
+      })
+    }
+
+    // For all other status updates (CANCELLED, DELIVERED, etc.)
+    const order = await Order.findById(req.params.id)
+    if (!order) {
+      return res.status(404).json({ message: "Order not found." })
+    }
+
+    if (!order.rejectedByEmails) order.rejectedByEmails = []
+    if (!order.statusHistory) order.statusHistory = []
+
+    const currentlyAssignedEmail = getAssignedEmail(order)
+    const currentEffectiveStatus = getCurrentStatus(order)
+
+    if (status === "CANCELLED") {
+      // Prevent cancellation of already confirmed orders by non-assigned partners
+      if (currentEffectiveStatus === "CONFIRMED" && currentlyAssignedEmail !== updatedByEmail) {
+        return res.status(403).json({
+          message: "Only the assigned delivery partner can cancel a confirmed order.",
+          action: "hide_order", // Hide order from this partner's view
+        })
+      }
+
+      if (currentEffectiveStatus === "DELIVERED") {
+        return res.status(400).json({ message: "Cannot cancel a delivered order." })
+      }
+
+      if (hasUserCancelled(order, updatedByEmail)) {
+        return res.status(400).json({ message: "You have already rejected this order." })
+      }
+
+      // Use atomic operation for cancellation to prevent race conditions
+      const cancelledOrder = await Order.findOneAndUpdate(
+        {
+          _id: req.params.id,
+          $nor: [{ "statusHistory.email": updatedByEmail, "statusHistory.status": "CANCELLED" }],
+        },
+        {
+          $push: {
+            statusHistory: {
+              email: updatedByEmail,
+              status: "CANCELLED",
+              updatedAt: new Date(),
+            },
+            rejectedByEmails: updatedByEmail,
+          },
+        },
+        { new: true },
+      )
+
+      if (!cancelledOrder) {
+        return res.status(400).json({ message: "You have already rejected this order." })
+      }
+
+      // Update delivery partner stats for CANCELLED order
+      await updateDeliveryPartnerStats(updatedByEmail, "CANCELLED", cancelledOrder.createdAt)
 
       const today = formatDate(new Date())
       const activePartners = await DeliveryPartnerDutyStatus.find({
@@ -304,110 +447,54 @@ router.patch("/:id/status", async (req, res) => {
         },
       })
 
-      // Notify other partners
-      activePartners.forEach((partner) => {
-        if (partner.email !== updatedByEmail) {
-          req.io.to(partner.email).emit("order-assigned", {
-            message: "Order has been assigned to another partner",
-            orderId: updatedOrder._id,
-            assignedTo: updatedByEmail,
-          })
-        }
-      })
+      const activePartnerEmails = activePartners.map((partner) => partner.email)
 
-      // Notify customer and assigned partner
-      req.io.to(updatedOrder.userEmail).emit("order-status-updated", {
-        message: "Your order has been confirmed by a delivery partner",
-        order: updatedOrder,
-      })
-      req.io.to(updatedByEmail).emit("order-status-updated", {
-        message: "Order confirmed successfully",
-        order: updatedOrder,
-      })
-
-      console.log(`🎯 Order ${updatedOrder._id} ATOMICALLY assigned to ${updatedByEmail}`)
-      return res.status(200).json({
-        ...updatedOrder.toObject(),
-        success: true,
-        message: "Order accepted successfully!",
-      })
-    }
-
-    // For all other status updates
-    const order = await Order.findById(req.params.id)
-    if (!order) {
-      return res.status(404).json({ message: "Order not found." })
-    }
-
-    if (!order.rejectedByEmails) order.rejectedByEmails = []
-    if (!order.statusHistory) order.statusHistory = []
-
-    const currentlyAssignedEmail = getAssignedEmail(order)
-    const currentEffectiveStatus = getCurrentStatus(order)
-    const today = formatDate(new Date())
-    const activePartners = await DeliveryPartnerDutyStatus.find({
-      statusLog: {
-        $elemMatch: {
-          date: today,
-          sessions: {
-            $elemMatch: {
-              dutyTrue: { $ne: null },
-              dutyFalse: null,
-            },
-          },
-        },
-      },
-    })
-    const activePartnerEmails = activePartners.map((partner) => partner.email)
-
-    if (status === "CANCELLED") {
-      if (currentEffectiveStatus === "DELIVERED") {
-        return res.status(400).json({ message: "Cannot cancel a delivered order." })
-      }
-
-      if (hasUserCancelled(order, updatedByEmail)) {
-        return res.status(400).json({ message: "You have already rejected this order." })
-      }
-
-      // Update delivery partner stats for CANCELLED order
-      await updateDeliveryPartnerStats(updatedByEmail, "CANCELLED", order.createdAt)
-
-      if (!order.rejectedByEmails.includes(updatedByEmail)) {
-        order.rejectedByEmails.push(updatedByEmail)
-      }
-
+      // If assigned partner cancelled, make order available again
       if (currentlyAssignedEmail === updatedByEmail) {
-        order.status = "PENDING"
+        await Order.findByIdAndUpdate(req.params.id, { status: "PENDING" })
+
+        // Notify other available partners
         activePartners.forEach((partner) => {
-          if (partner.email !== updatedByEmail && !order.rejectedByEmails.includes(partner.email)) {
+          if (partner.email !== updatedByEmail && !cancelledOrder.rejectedByEmails.includes(partner.email)) {
             req.io.to(partner.email).emit("order-available-again", {
               message: "Order is available again",
-              order: order,
+              order: { ...cancelledOrder.toObject(), status: "PENDING" },
             })
           }
         })
-        console.log(`🔄 Order ${order._id} made available again after ${updatedByEmail} cancelled`)
+        console.log(`🔄 Order ${cancelledOrder._id} made available again after ${updatedByEmail} cancelled`)
       } else {
-        const tempStatusHistory = [
-          ...order.statusHistory,
-          {
-            email: updatedByEmail,
-            status: "CANCELLED",
-            updatedAt: new Date(),
-          },
-        ]
-        const rejectedEmails = tempStatusHistory
-          .filter((entry) => entry.status === "CANCELLED")
-          .map((entry) => entry.email)
+        // Check if all active partners have rejected
+        const allRejected =
+          activePartnerEmails.length > 0 &&
+          activePartnerEmails.every((email) => cancelledOrder.rejectedByEmails.includes(email))
 
-        if (activePartnerEmails.length > 0 && activePartnerEmails.every((email) => rejectedEmails.includes(email))) {
-          order.status = "CANCELLED"
-          // Clear timeout if all partners rejected
-          clearOrderTimeout(order._id.toString())
-        } else {
-          order.status = "PENDING"
+        if (allRejected) {
+          await Order.findByIdAndUpdate(req.params.id, { status: "CANCELLED" })
+          clearOrderTimeout(cancelledOrder._id.toString())
+          console.log(`❌ Order ${cancelledOrder._id} cancelled - all partners rejected`)
         }
       }
+
+      // Get updated order
+      const finalOrder = await Order.findById(req.params.id)
+
+      // Notify customer and assigned partner (if any)
+      req.io.to(finalOrder.userEmail).emit("order-status-updated", {
+        message: "Order status updated",
+        order: finalOrder,
+      })
+
+      const assignedEmail = getAssignedEmail(finalOrder)
+      if (assignedEmail && assignedEmail !== finalOrder.userEmail) {
+        req.io.to(assignedEmail).emit("order-status-updated", {
+          message: "Order status updated",
+          order: finalOrder,
+        })
+      }
+
+      console.log(`Order ${finalOrder._id} status updated by ${updatedByEmail} to ${status}`)
+      return res.status(200).json(finalOrder)
     } else if (status === "DELIVERED") {
       if (currentlyAssignedEmail !== updatedByEmail) {
         return res.status(403).json({ message: "Only the assigned delivery partner can mark order as delivered." })
@@ -516,37 +603,50 @@ router.post("/:id/retry", async (req, res) => {
       return res.status(403).json({ message: "No delivery partners available at the moment" })
     }
 
-    // Reset order to PENDING
-    order.status = "PENDING"
-    order.rejectedByEmails = [] // Reset rejected emails for retry
-    order.statusHistory.push({
-      email: "system",
-      status: "RETRY",
-      updatedAt: new Date(),
-    })
+    // Reset order to PENDING with atomic operation
+    const retriedOrder = await Order.findOneAndUpdate(
+      { _id: req.params.id, status: "TIMEOUT" },
+      {
+        $set: {
+          status: "PENDING",
+          rejectedByEmails: [], // Reset rejected emails for retry
+        },
+        $push: {
+          statusHistory: {
+            email: "system",
+            status: "RETRY",
+            updatedAt: new Date(),
+          },
+        },
+      },
+      { new: true },
+    )
 
-    await order.save()
+    if (!retriedOrder) {
+      return res.status(400).json({ message: "Order cannot be retried at this time." })
+    }
 
     // Set new timeout for retry
-    setOrderTimeout(order._id.toString(), req.io)
+    setOrderTimeout(retriedOrder._id.toString(), req.io)
 
     // Notify all active partners about the retry
     activePartners.forEach((partner) => {
       req.io.to(partner.email).emit("new-order", {
         message: "Order retry - New order received",
-        order: order,
+        order: retriedOrder,
         isRetry: true,
+        timestamp: new Date().toISOString(),
       })
     })
 
     // Notify customer about retry
-    req.io.to(order.userEmail).emit("order-status-updated", {
+    req.io.to(retriedOrder.userEmail).emit("order-status-updated", {
       message: "Your order has been resubmitted to delivery partners",
-      order: order,
+      order: retriedOrder,
     })
 
-    console.log(`🔄 Order ${order._id} retried successfully`)
-    res.status(200).json({ message: "Order retried successfully!", order })
+    console.log(`🔄 Order ${retriedOrder._id} retried successfully`)
+    res.status(200).json({ message: "Order retried successfully!", order: retriedOrder })
   } catch (error) {
     console.error("Error retrying order:", error)
     res.status(500).json({ message: "Internal Server Error" })
