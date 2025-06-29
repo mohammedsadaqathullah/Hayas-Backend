@@ -4,16 +4,76 @@ const Order = require("../models/Order")
 const DeliveryPartnerDutyStatus = require("../models/DeliveryPartnerDutyStatus")
 const DeliveryPartnerStats = require("../models/DeliveryPartnerStats")
 
+// Store active order timeouts
+const orderTimeouts = new Map()
+
 function formatDate(date) {
   return date.toISOString().split("T")[0] // YYYY-MM-DD
+}
+
+// Helper function to clear order timeout
+function clearOrderTimeout(orderId) {
+  if (orderTimeouts.has(orderId)) {
+    clearTimeout(orderTimeouts.get(orderId))
+    orderTimeouts.delete(orderId)
+    console.log(`⏰ Timeout cleared for order ${orderId}`)
+  }
+}
+
+// Helper function to set order timeout (2 minutes)
+function setOrderTimeout(orderId, io) {
+  const timeoutId = setTimeout(
+    async () => {
+      try {
+        console.log(`⏰ Order ${orderId} timeout triggered - no partners accepted within 2 minutes`)
+
+        const order = await Order.findById(orderId)
+        if (!order) {
+          console.log(`Order ${orderId} not found during timeout`)
+          return
+        }
+
+        // Only timeout if order is still PENDING
+        if (order.status === "PENDING") {
+          order.status = "TIMEOUT"
+          order.statusHistory.push({
+            email: "system",
+            status: "TIMEOUT",
+            updatedAt: new Date(),
+          })
+
+          await order.save()
+
+          // Notify customer about timeout
+          io.to(order.userEmail).emit("order-timeout", {
+            message: "No delivery partners available at the moment",
+            order: order,
+            supportContact: {
+              phone: "+91 9876543210", // Replace with actual support number
+              message: "Contact support for immediate assistance",
+            },
+          })
+
+          console.log(`📞 Order ${orderId} timed out - customer notified`)
+        }
+
+        // Remove from timeout map
+        orderTimeouts.delete(orderId)
+      } catch (error) {
+        console.error(`Error handling timeout for order ${orderId}:`, error)
+      }
+    },
+    2 * 60 * 1000,
+  ) // 2 minutes in milliseconds
+
+  orderTimeouts.set(orderId, timeoutId)
+  console.log(`⏰ Timeout set for order ${orderId} - 2 minutes`)
 }
 
 // Helper function to update delivery partner stats
 async function updateDeliveryPartnerStats(email, action, orderDate) {
   try {
     const date = formatDate(new Date(orderDate))
-
-    // Find or create stats record
     let stats = await DeliveryPartnerStats.findOne({ email, date })
 
     if (!stats) {
@@ -27,7 +87,6 @@ async function updateDeliveryPartnerStats(email, action, orderDate) {
       })
     }
 
-    // Update working hours from duty status
     const dutyRecord = await DeliveryPartnerDutyStatus.findOne({ email })
     if (dutyRecord) {
       const dateLog = dutyRecord.statusLog.find((log) => log.date === date)
@@ -39,7 +98,6 @@ async function updateDeliveryPartnerStats(email, action, orderDate) {
       }
     }
 
-    // Update order counts based on action
     if (action === "COMPLETED" || action === "DELIVERED") {
       stats.completedOrders += 1
     } else if (action === "REJECTED" || action === "CANCELLED") {
@@ -67,19 +125,16 @@ function getCurrentStatus(order) {
     return order.status
   }
 
-  // Check if there's a DELIVERED status
   const deliveredEntry = order.statusHistory
     .filter((entry) => entry.status === "DELIVERED")
     .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))[0]
   if (deliveredEntry) return "DELIVERED"
 
-  // Check if there's a CONFIRMED status
   const confirmedEntry = order.statusHistory
     .filter((entry) => entry.status === "CONFIRMED")
     .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))[0]
   if (confirmedEntry) return "CONFIRMED"
 
-  // Otherwise return the main status
   return order.status
 }
 
@@ -138,6 +193,9 @@ router.post("/", async (req, res) => {
 
     await newOrder.save()
 
+    // Set 2-minute timeout for this order
+    setOrderTimeout(newOrder._id.toString(), req.io)
+
     // Notify all active partners
     activePartners.forEach((partner) => {
       req.io.to(partner.email).emit("new-order", {
@@ -192,7 +250,7 @@ router.patch("/:id/status", async (req, res) => {
       return res.status(400).json({ message: "Status and updatedByEmail are required." })
     }
 
-    const validStatuses = ["PENDING", "CONFIRMED", "CANCELLED", "DELIVERED"]
+    const validStatuses = ["PENDING", "CONFIRMED", "CANCELLED", "DELIVERED", "TIMEOUT"]
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: "Invalid status value." })
     }
@@ -224,6 +282,9 @@ router.patch("/:id/status", async (req, res) => {
           success: false,
         })
       }
+
+      // Clear timeout since order was accepted
+      clearOrderTimeout(updatedOrder._id.toString())
 
       // Update delivery partner stats for CONFIRMED order
       await updateDeliveryPartnerStats(updatedByEmail, "CONFIRMED", updatedOrder.createdAt)
@@ -283,7 +344,6 @@ router.patch("/:id/status", async (req, res) => {
 
     const currentlyAssignedEmail = getAssignedEmail(order)
     const currentEffectiveStatus = getCurrentStatus(order)
-
     const today = formatDate(new Date())
     const activePartners = await DeliveryPartnerDutyStatus.find({
       statusLog: {
@@ -298,7 +358,6 @@ router.patch("/:id/status", async (req, res) => {
         },
       },
     })
-
     const activePartnerEmails = activePartners.map((partner) => partner.email)
 
     if (status === "CANCELLED") {
@@ -337,13 +396,14 @@ router.patch("/:id/status", async (req, res) => {
             updatedAt: new Date(),
           },
         ]
-
         const rejectedEmails = tempStatusHistory
           .filter((entry) => entry.status === "CANCELLED")
           .map((entry) => entry.email)
 
         if (activePartnerEmails.length > 0 && activePartnerEmails.every((email) => rejectedEmails.includes(email))) {
           order.status = "CANCELLED"
+          // Clear timeout if all partners rejected
+          clearOrderTimeout(order._id.toString())
         } else {
           order.status = "PENDING"
         }
@@ -359,8 +419,10 @@ router.patch("/:id/status", async (req, res) => {
 
       // Update delivery partner stats for DELIVERED order
       await updateDeliveryPartnerStats(updatedByEmail, "DELIVERED", order.createdAt)
-
       order.status = "DELIVERED"
+
+      // Clear timeout since order is completed
+      clearOrderTimeout(order._id.toString())
     } else if (status === "PENDING") {
       if (currentEffectiveStatus === "DELIVERED") {
         return res.status(400).json({ message: "Cannot change status of a delivered order back to pending." })
@@ -403,7 +465,6 @@ router.get("/active/:email", async (req, res) => {
   try {
     const email = req.params.email
     const confirmedOrders = await Order.find({ status: "CONFIRMED" })
-
     const assignedOrders = confirmedOrders.filter((order) => {
       const confirmedEntries = order.statusHistory
         .filter((entry) => entry.status === "CONFIRMED")
@@ -418,6 +479,76 @@ router.get("/active/:email", async (req, res) => {
     res.status(200).json(assignedOrders)
   } catch (error) {
     console.error("Error fetching active orders for email:", error)
+    res.status(500).json({ message: "Internal Server Error" })
+  }
+})
+
+// POST /orders/:id/retry - Retry a timed out order
+router.post("/:id/retry", async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id)
+
+    if (!order) {
+      return res.status(404).json({ message: "Order not found." })
+    }
+
+    if (order.status !== "TIMEOUT") {
+      return res.status(400).json({ message: "Only timed out orders can be retried." })
+    }
+
+    // Check if there are active partners available
+    const today = formatDate(new Date())
+    const activePartners = await DeliveryPartnerDutyStatus.find({
+      statusLog: {
+        $elemMatch: {
+          date: today,
+          sessions: {
+            $elemMatch: {
+              dutyTrue: { $ne: null },
+              dutyFalse: null,
+            },
+          },
+        },
+      },
+    })
+
+    if (!activePartners.length) {
+      return res.status(403).json({ message: "No delivery partners available at the moment" })
+    }
+
+    // Reset order to PENDING
+    order.status = "PENDING"
+    order.rejectedByEmails = [] // Reset rejected emails for retry
+    order.statusHistory.push({
+      email: "system",
+      status: "RETRY",
+      updatedAt: new Date(),
+    })
+
+    await order.save()
+
+    // Set new timeout for retry
+    setOrderTimeout(order._id.toString(), req.io)
+
+    // Notify all active partners about the retry
+    activePartners.forEach((partner) => {
+      req.io.to(partner.email).emit("new-order", {
+        message: "Order retry - New order received",
+        order: order,
+        isRetry: true,
+      })
+    })
+
+    // Notify customer about retry
+    req.io.to(order.userEmail).emit("order-status-updated", {
+      message: "Your order has been resubmitted to delivery partners",
+      order: order,
+    })
+
+    console.log(`🔄 Order ${order._id} retried successfully`)
+    res.status(200).json({ message: "Order retried successfully!", order })
+  } catch (error) {
+    console.error("Error retrying order:", error)
     res.status(500).json({ message: "Internal Server Error" })
   }
 })
