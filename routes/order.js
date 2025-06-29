@@ -121,37 +121,28 @@ router.get("/:email", async (req, res) => {
 // PATCH /orders/:id/status
 router.patch("/:id/status", async (req, res) => {
   try {
-    const { status, updatedByEmail } = req.body
+    const { status, updatedByEmail } = req.body;
 
-    // Validate required fields
     if (!status || !updatedByEmail) {
-      return res.status(400).json({ message: "Status and updatedByEmail are required." })
+      return res.status(400).json({ message: "Status and updatedByEmail are required." });
     }
 
-    // Updated valid statuses to include DELIVERED
-    const validStatuses = ["PENDING", "CONFIRMED", "CANCELLED", "DELIVERED"]
+    const validStatuses = ["PENDING", "CONFIRMED", "CANCELLED", "DELIVERED"];
     if (!validStatuses.includes(status)) {
-      return res.status(400).json({ message: "Invalid status value." })
+      return res.status(400).json({ message: "Invalid status value." });
     }
 
-    const order = await Order.findById(req.params.id)
+    const order = await Order.findById(req.params.id);
     if (!order) {
-      return res.status(404).json({ message: "Order not found." })
+      return res.status(404).json({ message: "Order not found." });
     }
 
-    // Initialize arrays if they don't exist (for backward compatibility)
-    if (!order.rejectedByEmails) {
-      order.rejectedByEmails = []
-    }
-    if (!order.statusHistory) {
-      order.statusHistory = []
-    }
+    if (!order.rejectedByEmails) order.rejectedByEmails = [];
+    if (!order.statusHistory) order.statusHistory = [];
 
-    // Get currently assigned email from statusHistory
-    const currentlyAssignedEmail = getAssignedEmail(order)
+    const currentlyAssignedEmail = getAssignedEmail(order);
+    const today = formatDate(new Date());
 
-    // Get active partners for checking if all rejected
-    const today = formatDate(new Date())
     const activePartners = await DeliveryPartnerDutyStatus.find({
       statusLog: {
         $elemMatch: {
@@ -164,55 +155,36 @@ router.patch("/:id/status", async (req, res) => {
           },
         },
       },
-    })
-    const activePartnerEmails = activePartners.map((partner) => partner.email)
-console.log("Broadcasting to active partners:", activePartners.map(p => p.email))
+    });
+    const activePartnerEmails = activePartners.map((partner) => partner.email);
 
-    // Handle CONFIRMED status (Accept)
     if (status === "CONFIRMED") {
-      // If already assigned to someone else, no one else can accept it
       if (currentlyAssignedEmail && currentlyAssignedEmail !== updatedByEmail) {
-        return res.status(409).json({ message: "Order already accepted by another captain." })
+        return res.status(409).json({ message: "Order already accepted by another captain." });
       }
-
-      // Check if order is already delivered
       if (order.status === "DELIVERED") {
-        return res.status(400).json({ message: "Cannot confirm a delivered order." })
+        return res.status(400).json({ message: "Cannot confirm a delivered order." });
       }
-
-      // Check if this partner already rejected this order
       if (hasUserCancelled(order, updatedByEmail)) {
-        return res.status(400).json({ message: "You have already rejected this order." })
+        return res.status(400).json({ message: "You have already rejected this order." });
       }
 
-      // Update main status to CONFIRMED
-      order.status = "CONFIRMED"
-    }
-
-    // Handle CANCELLED status (Reject)
-    else if (status === "CANCELLED") {
-      // Check if order is already delivered
+      order.status = "CONFIRMED";
+    } else if (status === "CANCELLED") {
       if (order.status === "DELIVERED") {
-        return res.status(400).json({ message: "Cannot cancel a delivered order." })
+        return res.status(400).json({ message: "Cannot cancel a delivered order." });
       }
-
-      // Check if this partner already rejected this order
       if (hasUserCancelled(order, updatedByEmail)) {
-        return res.status(400).json({ message: "You have already rejected this order." })
+        return res.status(400).json({ message: "You have already rejected this order." });
       }
 
-      // Add to rejected list if not already there
       if (!order.rejectedByEmails.includes(updatedByEmail)) {
-        order.rejectedByEmails.push(updatedByEmail)
+        order.rejectedByEmails.push(updatedByEmail);
       }
 
-      // If the person rejecting is the one who confirmed it, change main status to CANCELLED
       if (currentlyAssignedEmail === updatedByEmail) {
-        order.status = "CANCELLED"
-      }
-      // If this rejection means all active partners have rejected, mark as CANCELLED
-      else {
-        // Add this rejection to status history first (temporarily)
+        order.status = "CANCELLED";
+      } else {
         const tempStatusHistory = [
           ...order.statusHistory,
           {
@@ -220,75 +192,68 @@ console.log("Broadcasting to active partners:", activePartners.map(p => p.email)
             status: "CANCELLED",
             updatedAt: new Date(),
           },
-        ]
+        ];
 
-        // Check if all partners have now rejected
         const rejectedEmails = tempStatusHistory
           .filter((entry) => entry.status === "CANCELLED")
-          .map((entry) => entry.email)
+          .map((entry) => entry.email);
 
         if (activePartnerEmails.length > 0 && activePartnerEmails.every((email) => rejectedEmails.includes(email))) {
-          order.status = "CANCELLED"
+          order.status = "CANCELLED";
         } else {
-          order.status = "PENDING" // Keep as PENDING if not all partners have rejected
+          order.status = "PENDING";
         }
       }
-    }
-
-    // Handle DELIVERED status
-    else if (status === "DELIVERED") {
-      // Only the assigned person can mark as delivered
+    } else if (status === "DELIVERED") {
       if (currentlyAssignedEmail !== updatedByEmail) {
-        return res.status(403).json({ message: "Only the assigned delivery partner can mark order as delivered." })
+        return res.status(403).json({ message: "Only the assigned delivery partner can mark order as delivered." });
       }
-
-      // Order must be confirmed before it can be delivered
       if (order.status !== "CONFIRMED") {
-        return res.status(400).json({ message: "Order must be confirmed before it can be delivered." })
+        return res.status(400).json({ message: "Order must be confirmed before it can be delivered." });
       }
 
-      // Update main status to DELIVERED
-      order.status = "DELIVERED"
-    }
-
-    // Handle PENDING status
-    else if (status === "PENDING") {
-      // Only allow if current status is not DELIVERED
+      order.status = "DELIVERED";
+    } else if (status === "PENDING") {
       if (order.status === "DELIVERED") {
-        return res.status(400).json({ message: "Cannot change status of a delivered order back to pending." })
+        return res.status(400).json({ message: "Cannot change status of a delivered order back to pending." });
       }
 
-      // Update main status to PENDING
-      order.status = "PENDING"
+      order.status = "PENDING";
     }
 
-    // Add to status history
     order.statusHistory.push({
       email: updatedByEmail,
       status,
       updatedAt: new Date(),
-    })
+    });
 
-    await order.save()
+    await order.save();
 
-    console.log(`Order ${order._id} status updated:`)
-    console.log(`- Main status: ${order.status}`)
-    console.log(`- Action taken: ${status} by ${updatedByEmail}`)
-    console.log(`- Active partners: ${activePartnerEmails.length}`)
-    console.log(`- Rejected by: ${order.rejectedByEmails.length} partners`)
+    console.log(`Order ${order._id} status updated by ${updatedByEmail} to ${status}`);
 
-    // Emit socket event
-    req.io.emit("order-status-updated", {
+    // ✅ Emit update only to relevant users
+    // 1. To the customer
+    req.io.to(order.userEmail).emit("order-status-updated", {
       message: "Order status updated",
       order,
-    })
+    });
 
-    res.status(200).json(order)
+    // 2. To the assigned captain
+    const assignedEmail = getAssignedEmail(order);
+    if (assignedEmail && assignedEmail !== order.userEmail) {
+      req.io.to(assignedEmail).emit("order-status-updated", {
+        message: "Order status updated",
+        order,
+      });
+    }
+
+    res.status(200).json(order);
   } catch (error) {
-    console.error("Error updating order status:", error)
-    res.status(500).json({ message: "Internal Server Error", error: error.message })
+    console.error("Error updating order status:", error);
+    res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
-})
+});
+
 
 // GET /orders/active/:email — Get active (accepted but not delivered) orders for a delivery partner
 router.get("/active/:email", async (req, res) => {
