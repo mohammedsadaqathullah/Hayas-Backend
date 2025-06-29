@@ -99,12 +99,18 @@ router.get("/", async (req, res) => {
   }
 })
 
-// GET /orders/:email — Get orders by user email (newest first)
+// GET /orders/:email — Get all orders where this email is involved
 router.get("/:email", async (req, res) => {
   try {
     const email = req.params.email
-    // Sort by createdAt in descending order (newest first)
-    const orders = await Order.find({ userEmail: email }).sort({ createdAt: -1 })
+
+    // Match if email is either the user who placed the order OR part of statusHistory
+    const orders = await Order.find({
+      $or: [
+        { userEmail: email },
+        { "statusHistory.email": email }
+      ],
+    }).sort({ createdAt: -1 })
 
     if (!orders.length) {
       return res.status(404).json({ message: "No orders found for this email." })
