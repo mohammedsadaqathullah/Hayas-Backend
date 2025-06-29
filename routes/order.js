@@ -9,17 +9,39 @@ function formatDate(date) {
 
 // Helper function to get assigned email from statusHistory
 function getAssignedEmail(order) {
-  // Find the most recent CONFIRMED status in statusHistory
   const confirmedEntry = order.statusHistory
     .filter((entry) => entry.status === "CONFIRMED")
     .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))[0]
   return confirmedEntry ? confirmedEntry.email : null
 }
 
+// Helper function to get the current effective status
+function getCurrentStatus(order) {
+  if (!order.statusHistory || order.statusHistory.length === 0) {
+    return order.status
+  }
+
+  // Check if there's a DELIVERED status
+  const deliveredEntry = order.statusHistory
+    .filter((entry) => entry.status === "DELIVERED")
+    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))[0]
+
+  if (deliveredEntry) return "DELIVERED"
+
+  // Check if there's a CONFIRMED status
+  const confirmedEntry = order.statusHistory
+    .filter((entry) => entry.status === "CONFIRMED")
+    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))[0]
+
+  if (confirmedEntry) return "CONFIRMED"
+
+  // Otherwise return the main status
+  return order.status
+}
+
 // Helper function to check if all active partners have rejected
 function areAllPartnersRejected(order, activePartnerEmails) {
   const rejectedEmails = order.statusHistory.filter((entry) => entry.status === "CANCELLED").map((entry) => entry.email)
-  // Check if all active partners have rejected
   return activePartnerEmails.every((email) => rejectedEmails.includes(email))
 }
 
@@ -90,7 +112,6 @@ router.post("/", async (req, res) => {
 // GET /orders — Get all orders (newest first)
 router.get("/", async (req, res) => {
   try {
-    // Sort by createdAt in descending order (newest first)
     const orders = await Order.find().sort({ createdAt: -1 })
     res.status(200).json(orders)
   } catch (error) {
@@ -103,13 +124,8 @@ router.get("/", async (req, res) => {
 router.get("/:email", async (req, res) => {
   try {
     const email = req.params.email
-
-    // Match if email is either the user who placed the order OR part of statusHistory
     const orders = await Order.find({
-      $or: [
-        { userEmail: email },
-        { "statusHistory.email": email }
-      ],
+      $or: [{ userEmail: email }, { "statusHistory.email": email }],
     }).sort({ createdAt: -1 })
 
     if (!orders.length) {
@@ -137,16 +153,13 @@ router.patch("/:id/status", async (req, res) => {
       return res.status(400).json({ message: "Invalid status value." })
     }
 
-    // 🚀 CRITICAL: Use findOneAndUpdate with atomic operation to prevent race conditions
+    // Handle CONFIRMED status with atomic operation
     if (status === "CONFIRMED") {
-      // Try to atomically update ONLY if status is still PENDING and not already assigned
       const updatedOrder = await Order.findOneAndUpdate(
         {
           _id: req.params.id,
-          status: "PENDING", // Only update if still PENDING
-          $nor: [
-            { "statusHistory.status": "CONFIRMED" }, // No confirmed entries exist
-          ],
+          status: "PENDING",
+          $nor: [{ "statusHistory.status": "CONFIRMED" }],
         },
         {
           $set: { status: "CONFIRMED" },
@@ -158,18 +171,16 @@ router.patch("/:id/status", async (req, res) => {
             },
           },
         },
-        { new: true }, // Return updated document
+        { new: true },
       )
 
       if (!updatedOrder) {
-        // Order was already assigned to someone else
         return res.status(409).json({
           message: "Order already accepted by another captain.",
           success: false,
         })
       }
 
-      // Success! This partner got the order
       const today = formatDate(new Date())
       const activePartners = await DeliveryPartnerDutyStatus.find({
         statusLog: {
@@ -185,7 +196,7 @@ router.patch("/:id/status", async (req, res) => {
         },
       })
 
-      // 🚀 CRITICAL: Notify ALL other active partners that this order is now assigned
+      // Notify other partners
       activePartners.forEach((partner) => {
         if (partner.email !== updatedByEmail) {
           req.io.to(partner.email).emit("order-assigned", {
@@ -196,13 +207,12 @@ router.patch("/:id/status", async (req, res) => {
         }
       })
 
-      // Notify the customer
+      // Notify customer and assigned partner
       req.io.to(updatedOrder.userEmail).emit("order-status-updated", {
         message: "Your order has been confirmed by a delivery partner",
         order: updatedOrder,
       })
 
-      // Notify the assigned partner with success
       req.io.to(updatedByEmail).emit("order-status-updated", {
         message: "Order confirmed successfully",
         order: updatedOrder,
@@ -216,7 +226,7 @@ router.patch("/:id/status", async (req, res) => {
       })
     }
 
-    // For all other status updates, use regular findById approach
+    // For all other status updates
     const order = await Order.findById(req.params.id)
     if (!order) {
       return res.status(404).json({ message: "Order not found." })
@@ -226,8 +236,9 @@ router.patch("/:id/status", async (req, res) => {
     if (!order.statusHistory) order.statusHistory = []
 
     const currentlyAssignedEmail = getAssignedEmail(order)
-    const today = formatDate(new Date())
+    const currentEffectiveStatus = getCurrentStatus(order) // Use the helper function
 
+    const today = formatDate(new Date())
     const activePartners = await DeliveryPartnerDutyStatus.find({
       statusLog: {
         $elemMatch: {
@@ -245,7 +256,8 @@ router.patch("/:id/status", async (req, res) => {
     const activePartnerEmails = activePartners.map((partner) => partner.email)
 
     if (status === "CANCELLED") {
-      if (order.status === "DELIVERED") {
+      if (currentEffectiveStatus === "DELIVERED") {
+        // Use effective status
         return res.status(400).json({ message: "Cannot cancel a delivered order." })
       }
 
@@ -258,10 +270,8 @@ router.patch("/:id/status", async (req, res) => {
       }
 
       if (currentlyAssignedEmail === updatedByEmail) {
-        // Assigned partner is cancelling - make order available again
         order.status = "PENDING"
 
-        // 🚀 CRITICAL: Notify all active partners that order is available again
         activePartners.forEach((partner) => {
           if (partner.email !== updatedByEmail && !order.rejectedByEmails.includes(partner.email)) {
             req.io.to(partner.email).emit("order-available-again", {
@@ -270,7 +280,6 @@ router.patch("/:id/status", async (req, res) => {
             })
           }
         })
-
         console.log(`🔄 Order ${order._id} made available again after ${updatedByEmail} cancelled`)
       } else {
         const tempStatusHistory = [
@@ -297,13 +306,15 @@ router.patch("/:id/status", async (req, res) => {
         return res.status(403).json({ message: "Only the assigned delivery partner can mark order as delivered." })
       }
 
-      if (order.status !== "CONFIRMED") {
+      // Check the effective status instead of just order.status
+      if (currentEffectiveStatus !== "CONFIRMED") {
         return res.status(400).json({ message: "Order must be confirmed before it can be delivered." })
       }
 
       order.status = "DELIVERED"
     } else if (status === "PENDING") {
-      if (order.status === "DELIVERED") {
+      if (currentEffectiveStatus === "DELIVERED") {
+        // Use effective status
         return res.status(400).json({ message: "Cannot change status of a delivered order back to pending." })
       }
       order.status = "PENDING"
@@ -339,20 +350,16 @@ router.patch("/:id/status", async (req, res) => {
   }
 })
 
-// GET /orders/active/:email — Get active (accepted but not delivered) orders for a delivery partner
+// GET /orders/active/:email — Get active orders for a delivery partner
 router.get("/active/:email", async (req, res) => {
   try {
     const email = req.params.email
-
-    // Find all orders with status CONFIRMED
     const confirmedOrders = await Order.find({ status: "CONFIRMED" })
 
-    // Filter orders where the latest CONFIRMED status in history is by this email
     const assignedOrders = confirmedOrders.filter((order) => {
       const confirmedEntries = order.statusHistory
         .filter((entry) => entry.status === "CONFIRMED")
-        .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)) // Newest first
-
+        .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
       return confirmedEntries.length && confirmedEntries[0].email === email
     })
 
