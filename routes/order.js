@@ -289,4 +289,33 @@ router.patch("/:id/status", async (req, res) => {
   }
 })
 
+// GET /orders/active/:email — Get active (accepted but not delivered) orders for a delivery partner
+router.get("/active/:email", async (req, res) => {
+  try {
+    const email = req.params.email;
+
+    // Find all orders with status CONFIRMED
+    const confirmedOrders = await Order.find({ status: "CONFIRMED" });
+
+    // Filter orders where the latest CONFIRMED status in history is by this email
+    const assignedOrders = confirmedOrders.filter((order) => {
+      const confirmedEntries = order.statusHistory
+        .filter((entry) => entry.status === "CONFIRMED")
+        .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)); // Newest first
+
+      return confirmedEntries.length && confirmedEntries[0].email === email;
+    });
+
+    if (!assignedOrders.length) {
+      return res.status(404).json({ message: "No active orders found for this email." });
+    }
+
+    res.status(200).json(assignedOrders);
+  } catch (error) {
+    console.error("Error fetching active orders for email:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+
 module.exports = router
