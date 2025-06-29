@@ -166,6 +166,7 @@ router.patch("/:id/status", async (req, res) => {
       },
     })
     const activePartnerEmails = activePartners.map((partner) => partner.email)
+console.log("Broadcasting to active partners:", activePartners.map(p => p.email))
 
     // Handle CONFIRMED status (Accept)
     if (status === "CONFIRMED") {
