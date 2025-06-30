@@ -7,21 +7,26 @@ const Order = require("../models/Order")
 // POST /withdrawal/request
 router.post("/request", async (req, res) => {
   try {
-    const { email, amount, orderIds } = req.body
+    const { email, amount, orderIds } = req.body;
 
     if (!email || !amount || amount <= 0) {
-      return res.status(400).json({ error: "Valid email and amount are required" })
+      return res.status(400).json({ error: "Valid email and amount are required" });
     }
 
-    // Get order details if provided
-    let orderDetails = []
+    // Get only completed orders
+    let orderDetails = [];
     if (orderIds && orderIds.length > 0) {
-      const orders = await Order.find({ _id: { $in: orderIds } })
+      const orders = await Order.find({ _id: { $in: orderIds }, status: "DELIVERED" });
       orderDetails = orders.map((order) => ({
         orderId: order._id,
         orderDate: order.createdAt,
-        earnings: 30, // Fixed earning per order
-      }))
+        earnings: 30,
+      }));
+    }
+
+    const totalEarnings = orderDetails.reduce((sum, od) => sum + od.earnings, 0);
+    if (amount > totalEarnings) {
+      return res.status(400).json({ error: "Requested amount exceeds eligible earnings for selected orders" });
     }
 
     const withdrawal = new Withdrawal({
@@ -29,19 +34,19 @@ router.post("/request", async (req, res) => {
       amount,
       orderDetails,
       status: "Pending",
-    })
+    });
 
-    await withdrawal.save()
+    await withdrawal.save();
 
     res.status(201).json({
       message: "Withdrawal request submitted successfully",
       withdrawal,
-    })
+    });
   } catch (error) {
-    console.error("Error creating withdrawal request:", error)
-    res.status(500).json({ error: "Internal server error" })
+    console.error("Error creating withdrawal request:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
-})
+});
 
 // GET /withdrawal/:email
 router.get("/:email", async (req, res) => {
