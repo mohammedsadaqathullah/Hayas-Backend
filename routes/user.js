@@ -75,6 +75,14 @@ router.delete('/:email', async (req, res) => {
         res.status(500).json({ error: 'Error deleting', details: err });
     }
 });
-
+// GET /user — List all users
+router.get('/', async (req, res) => {
+  try {
+    const users = await User.find();
+    res.status(200).json(users);
+  } catch (err) {
+    res.status(500).json({ error: 'Error fetching users', details: err.message });
+  }
+});
 
 module.exports = router;
