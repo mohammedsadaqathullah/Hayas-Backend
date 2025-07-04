@@ -76,4 +76,27 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/admin-users/:email — get admin user by email
+router.get('/:email', async (req, res) => {
+  try {
+    const email = req.params.email;
+
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({ error: 'Valid email is required' });
+    }
+
+    const user = await AdminUser.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({ error: 'Admin user not found' });
+    }
+
+    res.status(200).json(user);
+  } catch (err) {
+    console.error('Error fetching admin user by email:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
 module.exports = router;
