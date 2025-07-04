@@ -653,4 +653,94 @@ router.post("/:id/retry", async (req, res) => {
   }
 })
 
+//admin order status update
+// PATCH /orders/:id/admin-status — Admin can change status to PENDING or CANCELLED
+router.patch("/:id/admin-status", async (req, res) => {
+  try {
+    const { status } = req.body;
+    const adminEmail = "Admin";
+
+    if (!["PENDING", "CANCELLED"].includes(status)) {
+      return res.status(400).json({ message: "Only 'PENDING' or 'CANCELLED' status allowed." });
+    }
+
+    const order = await Order.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({ message: "Order not found." });
+    }
+
+    if (status === "CANCELLED") {
+      order.status = "CANCELLED";
+      order.statusHistory.push({
+        email: adminEmail,
+        status: "CANCELLED",
+        updatedAt: new Date(),
+      });
+
+      await order.save();
+
+      // Notify customer
+      req.io.to(order.userEmail).emit("order-status-updated", {
+        message: "Your order has been cancelled by Admin",
+        order,
+      });
+
+      return res.status(200).json({ message: "Order cancelled successfully by Admin.", order });
+    }
+
+    if (status === "PENDING") {
+      order.status = "PENDING";
+      order.rejectedByEmails = []; // reset rejected list
+      order.statusHistory.push({
+        email: adminEmail,
+        status: "PENDING",
+        updatedAt: new Date(),
+      });
+
+      await order.save();
+
+      const today = formatDate(new Date());
+      const activePartners = await DeliveryPartnerDutyStatus.find({
+        statusLog: {
+          $elemMatch: {
+            date: today,
+            sessions: {
+              $elemMatch: {
+                dutyTrue: { $ne: null },
+                dutyFalse: null,
+              },
+            },
+          },
+        },
+      });
+
+      if (activePartners.length) {
+        activePartners.forEach((partner) => {
+          req.io.to(partner.email).emit("new-order", {
+            message: "Admin reassigned a pending order",
+            order,
+            isAdminReassign: true,
+            timestamp: new Date().toISOString(),
+          });
+        });
+      }
+
+      // Set new timeout
+      setOrderTimeout(order._id.toString(), req.io);
+
+      // Notify customer
+      req.io.to(order.userEmail).emit("order-status-updated", {
+        message: "Your order has been reassigned by Admin",
+        order,
+      });
+
+      return res.status(200).json({ message: "Order set to pending and reassigned", order });
+    }
+  } catch (error) {
+    console.error("Admin status update failed:", error);
+    res.status(500).json({ message: "Internal Server Error", error: error.message });
+  }
+});
+
+
 module.exports = router
