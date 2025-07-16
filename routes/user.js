@@ -51,6 +51,22 @@ router.get('/by-email/:email', async (req, res) => {
     res.status(500).json({ error: 'Error fetching User', details: err.message });
   }
 });
+router.get('/by-phone/:phone', async (req, res) => {
+  try {
+    const phone = req.params.phone;
+
+    const user = await User.findOne({ phone });
+    if (!user) {
+      return res.status(404).json({ error: 'No User found' });
+    }
+
+    const userObject = user.toObject();
+    res.status(200).json({ userObject });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error fetching User by phone', details: err.message });
+  }
+});
 
 router.put('/:email', async (req, res) => {
     try {
