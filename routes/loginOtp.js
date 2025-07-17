@@ -31,13 +31,12 @@ router.post('/send-otp', async (req, res) => {
 // Verify OTP route
 router.post('/verify-otp', async (req, res) => {
   const { email, otp } = req.body;
-const normalizedEmail = email.toLowerCase();
 
   if (!email || !otp) {
     return res.status(400).json({ success: false, message: 'Email and OTP are required' });
   }
 
-  const isValid = await verifyOTP(normalizedEmail, otp);
+  const isValid = await verifyOTP(email, otp);
 
   if (isValid) {
     res.status(200).json({ success: true, message: 'OTP verified successfully' });

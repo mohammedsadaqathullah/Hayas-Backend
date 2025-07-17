@@ -80,19 +80,17 @@ async function sendEmailOTP(email) {
 
 // Verify OTP
 function verifyOTP(email, inputOtp) {
-  const normalizedEmail = email.toLowerCase();
-  const record = otpStore[normalizedEmail];
+  const record = otpStore[email];
   if (!record) return false;
 
   // Check if expired
   if (Date.now() > record.expires) {
-    const normalizedEmail = email.toLowerCase();
-    delete otpStore[normalizedEmail];
+    delete otpStore[email];
     return false;
   }
 
   const isValid = record.otp === inputOtp;
-  if (isValid) delete otpStore[normalizedEmail]; // Clean up used OTP
+  if (isValid) delete otpStore[email]; // Clean up used OTP
   return isValid;
 }
 module.exports = { sendEmailOTP, verifyOTP };
