@@ -49,6 +49,8 @@ app.use('/admin-user/auth', require('./routes/adminLogin'));
 app.use('/admin-user', require('./routes/adminUser'));
 app.use("/delivery-partner-stats", require("./routes/deliveryPartnerStats"))
 app.use("/withdrawal", require("./routes/withdrawal"))
+app.use("/uploadImages", require("./routes/uploadImageRoutes"))
+
 
 // ✅ Basic health check route
 app.get('/', (req, res) => res.send('Hello, Backend is running!'));
