@@ -746,6 +746,21 @@ router.patch("/:id/admin-status", async (req, res) => {
     res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 });
+// GET /orders/pending/live — Get all PENDING orders that are still waiting for partner confirmation
+router.get("/pending/live", async (req, res) => {
+  try {
+    const pendingOrders = await Order.find({ status: "PENDING" }).sort({ createdAt: -1 });
+
+    if (!pendingOrders.length) {
+      return res.status(404).json({ message: "No live pending orders found." });
+    }
+
+    res.status(200).json(pendingOrders);
+  } catch (error) {
+    console.error("Error fetching live pending orders:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
 
 
 module.exports = router
