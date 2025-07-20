@@ -745,10 +745,20 @@ router.patch("/:id/admin-status", async (req, res) => {
     res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 });
-// GET /orders/pending/live — Get all PENDING orders that are still waiting for partner confirmation
+// GET /orders/pending/live?email=partner@example.com
 router.get("/pending/live", async (req, res) => {
   try {
-    const pendingOrders = await Order.find({ status: "PENDING" }).sort({ createdAt: -1 });
+    const { email } = req.query;
+
+    let query = { status: "PENDING" };
+    if (email) {
+      query = {
+        ...query,
+        rejectedByEmails: { $ne: email }, // Exclude orders where this partner already rejected
+      };
+    }
+
+    const pendingOrders = await Order.find(query).sort({ createdAt: -1 });
 
     if (!pendingOrders.length) {
       return res.status(404).json({ message: "No live pending orders found." });
@@ -760,6 +770,7 @@ router.get("/pending/live", async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 });
+
 
 
 module.exports = router
