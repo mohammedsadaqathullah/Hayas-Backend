@@ -467,8 +467,7 @@ router.patch("/:id/status", async (req, res) => {
         // Check if all active partners have rejected
         const allRejected =
           activePartnerEmails.length > 0 &&
-          activePartnerEmails.every((email) => cancelledOrder.rejectedByEmails.includes(email))
-
+activePartnerEmails.every((email) => (cancelledOrder.rejectedByEmails || []).includes(email))
         if (allRejected) {
           await Order.findByIdAndUpdate(req.params.id, { status: "CANCELLED" })
           clearOrderTimeout(cancelledOrder._id.toString())
