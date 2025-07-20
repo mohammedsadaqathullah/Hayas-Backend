@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const DeliveryPartnerDutyStatus = require('../models/DeliveryPartnerDutyStatus');
 const Order = require('../models/Order');
+const cron = require('node-cron');
 
 function formatDate(date) {
     return date.toISOString().split('T')[0]; // YYYY-MM-DD
@@ -53,7 +54,6 @@ router.post('/update', async (req, res) => {
                     sessions.push({ dutyTrue: now });
                 }
             } else {
-                // ✅ Prevent logout if user has a CONFIRMED order
                 const hasConfirmedOrder = await Order.findOne({
                     status: 'CONFIRMED',
                     statusHistory: {
@@ -134,6 +134,73 @@ router.get('/:email', async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// POST /duty-status/heartbeat
+router.post('/heartbeat', async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({ error: 'Email is required.' });
+        }
+
+        const now = new Date();
+        const today = formatDate(now);
+
+        const record = await DeliveryPartnerDutyStatus.findOne({ email });
+
+        if (!record) {
+            return res.status(404).json({ error: 'Duty status record not found.' });
+        }
+
+        const dateLog = record.statusLog.find(log => log.date === today);
+
+        if (!dateLog) {
+            return res.status(404).json({ error: 'No duty session found for today.' });
+        }
+
+        const lastSession = dateLog.sessions[dateLog.sessions.length - 1];
+
+        if (lastSession && lastSession.dutyTrue && !lastSession.dutyFalse) {
+            lastSession.dutyTrue = now;
+            await record.save();
+            return res.status(200).json({ message: 'Heartbeat updated successfully.', data: record });
+        } else {
+            return res.status(400).json({ error: 'No active duty session to update.' });
+        }
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// CRON Job to auto off-duty after 20 minutes of no heartbeat
+cron.schedule('*/5 * * * *', async () => {
+    const now = new Date();
+
+    try {
+        const records = await DeliveryPartnerDutyStatus.find({});
+
+        records.forEach(async (record) => {
+            record.statusLog.forEach(log => {
+                log.sessions.forEach(session => {
+                    if (session.dutyTrue && !session.dutyFalse) {
+                        const diffMins = (now - new Date(session.dutyTrue)) / (1000 * 60);
+                        if (diffMins > 20) {
+                            session.dutyFalse = now;
+                            const hours = (now - new Date(session.dutyTrue)) / (1000 * 60 * 60);
+                            session.workingHours = parseFloat(hours.toFixed(2));
+                            await record.save();
+                            console.log(`Auto off-duty for ${record.email} after ${diffMins} mins`);
+                        }
+                    }
+                });
+            });
+        });
+    } catch (err) {
+        console.error('Error in auto off-duty cron:', err);
     }
 });
 
