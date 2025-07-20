@@ -748,27 +748,31 @@ router.patch("/:id/admin-status", async (req, res) => {
 // GET /orders/pending/live?email=partner@example.com
 router.get("/pending/live", async (req, res) => {
   try {
-    const { email } = req.query;
-
-    let query = { status: "PENDING" };
+    const { email } = req.query
+    let query = { status: "PENDING" }
     if (email) {
+      const lowercasedEmail = email.toLowerCase() // Normalize email to lowercase
       query = {
         ...query,
-        statusHistory: { $not: { $elemMatch: { email, status: "CANCELLED" } } }
-      };
+        statusHistory: {
+          $not: {
+            $elemMatch: {
+              email: lowercasedEmail,
+              status: "CANCELLED",
+            },
+          },
+        },
+      }
     }
-
-    const pendingOrders = await Order.find(query).sort({ createdAt: -1 });
-
+    const pendingOrders = await Order.find(query).sort({ createdAt: -1 })
     if (!pendingOrders.length) {
-      return res.status(404).json({ message: "No live pending orders found." });
+      return res.status(404).json({ message: "No live pending orders found." })
     }
-
-    res.status(200).json(pendingOrders);
+    res.status(200).json(pendingOrders)
   } catch (error) {
-    console.error("Error fetching live pending orders:", error);
-    res.status(500).json({ message: "Internal Server Error" });
+    console.error("Error fetching live pending orders:", error)
+    res.status(500).json({ message: "Internal Server Error" })
   }
-});
+})
 
 module.exports = router
