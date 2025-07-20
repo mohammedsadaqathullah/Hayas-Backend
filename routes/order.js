@@ -754,7 +754,7 @@ router.get("/pending/live", async (req, res) => {
     if (email) {
       query = {
         ...query,
-        rejectedByEmails: { $ne: email }, // Exclude orders where this partner already rejected
+        rejectedByEmails: { $nin: [email] }, // Exclude orders where this partner already rejected
       };
     }
 
@@ -770,7 +770,6 @@ router.get("/pending/live", async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 });
-
 
 
 module.exports = router
