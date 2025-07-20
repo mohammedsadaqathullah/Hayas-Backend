@@ -185,7 +185,7 @@ cron.schedule('*/5 * * * *', async () => {
 
         records.forEach(async (record) => {
             record.statusLog.forEach(log => {
-                log.sessions.forEach(session => {
+                log.sessions.forEach(async session => {
                     if (session.dutyTrue && !session.dutyFalse) {
                         const diffMins = (now - new Date(session.dutyTrue)) / (1000 * 60);
                         if (diffMins > 20) {
